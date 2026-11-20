@@ -1,0 +1,36 @@
+<section class="page">
+  <div class="page-heading"><div><p class="eyebrow">CONTROL Y AVANCES</p><h1>Seguimiento</h1><p class="muted">Registra avances físicos y financieros del proyecto.</p></div></div>
+  @if (error) { <div class="alert">{{ error }}</div> }
+  <div class="form-grid">
+    <section class="panel span-two"><div class="panel-heading"><h2>Registrar avance físico</h2></div>
+      <form [formGroup]="physicalForm" (ngSubmit)="savePhysical()" class="form-grid">
+        <label>Proyecto<select formControlName="proyectoId" (change)="loadActivitiesForProject()">@for (project of projects; track project.id) { <option [ngValue]="project.id">{{ project.nombre }}</option> }</select></label>
+        <label>Actividad<select formControlName="actividadId"><option [ngValue]="null">General del proyecto</option>@for (activity of projectActivities; track activity.id) { <option [ngValue]="activity.id">{{ activity.nombre }}</option> }</select></label>
+        <label>Porcentaje (%)<input type="number" min="0" max="100" step="0.01" formControlName="porcentaje"></label>
+        <label>Observación<input appTextOnly formControlName="observacion"></label>
+        <div class="form-actions"><button class="primary" [disabled]="savingPhysical">{{ savingPhysical ? 'Guardando…' : 'Registrar avance físico' }}</button></div>
+      </form>
+    </section>
+    <section class="panel span-two"><div class="panel-heading"><h2>Registrar avance financiero</h2></div>
+      <form [formGroup]="financialForm" (ngSubmit)="saveFinancial()" class="form-grid">
+        <label>Proyecto<select formControlName="proyectoId">@for (project of projects; track project.id) { <option [ngValue]="project.id">{{ project.nombre }}</option> }</select></label>
+        <label>Monto (Bs)<input type="number" min="0.01" step="0.01" formControlName="monto"></label>
+        <label>Referencia<input formControlName="referencia" placeholder="Factura o comprobante"></label>
+        <label>Observación<input appTextOnly formControlName="observacion"></label>
+        <div class="form-actions"><button class="primary" [disabled]="savingFinancial">{{ savingFinancial ? 'Guardando…' : 'Registrar avance financiero' }}</button></div>
+      </form>
+    </section>
+  </div>
+  <section class="panel"><div class="panel-heading"><h2>Avances físicos <span class="count">{{ physical.length }}</span></h2></div>
+    @if (physical.length) { <div class="table-wrap"><table><thead><tr><th>Proyecto</th><th>Actividad</th><th>Porcentaje</th><th>Fecha</th><th>Usuario</th></tr></thead><tbody>@for (item of physical; track item.id) { <tr><td>{{ item.proyecto.nombre }}</td><td>{{ item.actividad?.nombre || 'General' }}</td><td>{{ Number(item.porcentaje).toFixed(2) }}%</td><td>{{ item.fecha | date:'dd/MM/yyyy HH:mm' }}</td><td>{{ item.usuario.nombre }}</td></tr> }</tbody></table></div> } @else { <p class="muted pad">No hay avances físicos registrados.</p> }
+  </section>
+  <section class="panel"><div class="panel-heading"><h2>Avances pendientes de revisión <span class="count">{{ pending.length }}</span></h2></div>
+    @if (pending.length) { <div class="table-wrap"><table><thead><tr><th>Proyecto</th><th>Actividad</th><th>Porcentaje</th><th>Estado</th><th></th></tr></thead><tbody>@for (item of pending; track item.id) { <tr><td>{{ item.proyecto.nombre }}</td><td>{{ item.actividad?.nombre || 'General' }}</td><td>{{ Number(item.porcentaje).toFixed(2) }}%</td><td>{{ item.estado }}</td><td><button class="text-button" (click)="approve(item)">Aprobar y publicar</button></td></tr> }</tbody></table></div> } @else { <p class="muted pad">No hay avances pendientes.</p> }
+  </section>
+  <section class="panel"><div class="panel-heading"><h2>Avances financieros <span class="count">{{ financial.length }}</span></h2></div>
+    @if (financial.length) { <div class="table-wrap"><table><thead><tr><th>Proyecto</th><th>Monto</th><th>Referencia</th><th>Fecha</th><th>Usuario</th></tr></thead><tbody>@for (item of financial; track item.id) { <tr><td>{{ item.proyecto.nombre }}</td><td>Bs {{ Number(item.monto).toLocaleString('es-BO') }}</td><td>{{ item.referencia || '—' }}</td><td>{{ item.fecha | date:'dd/MM/yyyy HH:mm' }}</td><td>{{ item.usuario.nombre }}</td></tr> }</tbody></table></div> } @else { <p class="muted pad">No hay avances financieros registrados.</p> }
+  </section>
+  <section class="panel"><div class="panel-heading"><h2>Alertas <span class="count">{{ alerts.length }}</span></h2></div>
+    @if (alerts.length) { <div class="table-wrap"><table><thead><tr><th>Proyecto</th><th>Actividad</th><th>Fecha fin</th><th>Avance</th></tr></thead><tbody>@for (alert of alerts; track alert.actividadId) { <tr><td>{{ alert.proyecto }}</td><td>{{ alert.actividad }}</td><td>{{ alert.fechaFin | date:'dd/MM/yyyy' }}</td><td>{{ alert.avance }}%</td></tr> }</tbody></table></div> } @else { <p class="muted pad">No existen alertas vencidas.</p> }
+  </section>
+</section>

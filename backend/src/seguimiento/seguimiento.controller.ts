@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/roles.guard';
 import { Roles, UserRole } from '../common/roles';
@@ -17,4 +17,8 @@ export class SeguimientoController {
   @Post('avances-financieros') @Roles(UserRole.ADMINISTRADOR, UserRole.SUPERVISOR, UserRole.TECNICO) addFinancial(@Body() dto: CrearAvanceFinancieroDto, @Req() req: AuthenticatedRequest) { return this.service.addFinancial(dto, req.user.id, req.user.role); }
   @Get('alertas') alerts() { return this.service.alerts(); }
   @Get('reportes/proyectos') report() { return this.service.projectReport(); }
+  @Get('avances-fisicos/pendientes') @Roles(UserRole.ADMINISTRADOR, UserRole.SUPERVISOR) pendingPhysical() { return this.service.pendingPhysical(); }
+  @Patch('avances-fisicos/:id/aprobar') @Roles(UserRole.ADMINISTRADOR, UserRole.SUPERVISOR) approvePhysical(@Param('id', ParseIntPipe) id: number) { return this.service.approvePhysical(id); }
+  @Patch('avances-fisicos/:id/observar') @Roles(UserRole.ADMINISTRADOR, UserRole.SUPERVISOR) observePhysical(@Param('id', ParseIntPipe) id: number, @Body() dto: { observacion: string }) { return this.service.observePhysical(id, dto.observacion); }
+  @Get('dashboard') @Roles(UserRole.ADMINISTRADOR, UserRole.SUPERVISOR, UserRole.TECNICO, UserRole.CONSULTA) dashboard() { return this.service.dashboard(); }
 }

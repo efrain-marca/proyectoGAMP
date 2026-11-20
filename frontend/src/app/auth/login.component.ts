@@ -6,8 +6,10 @@ import { AuthService } from '../core/auth.service';
 @Component({
   standalone: true,
   imports: [ReactiveFormsModule],
-  template: `
-    <section class="login-card">
+  templateUrl: './login.component.html',
+  styleUrls: ['./login.component.css'],
+})
+/*
       <div class="login-emblem">P</div><p class="eyebrow">GOBIERNO AUTÓNOMO MUNICIPAL</p>
       <h1>Bienvenido</h1><p class="muted">Ingresa para continuar al sistema de proyectos.</p>
       @if (error) { <div class="alert">{{ error }}</div> }
@@ -22,6 +24,7 @@ import { AuthService } from '../core/auth.service';
     </section>
   `,
 })
+*/
 export class LoginComponent {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);

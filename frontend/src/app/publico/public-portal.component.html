@@ -1,0 +1,69 @@
+<main class="public-page">
+  <header class="public-header">
+    <div class="public-brand">
+      <span class="seal">P</span>
+      <div><strong>Gobierno Autónomo Municipal de Potosí</strong><small>Portal de Transparencia</small></div>
+    </div>
+    <a routerLink="/login" class="public-login">Acceso institucional</a>
+  </header>
+
+  <section class="public-hero">
+    <div>
+      <p class="eyebrow">TRANSPARENCIA MUNICIPAL</p>
+      <h1>Obras y proyectos de Potosí</h1>
+      <p>Consulta el avance, ubicación y estado de las obras municipales.</p>
+    </div>
+  </section>
+
+  <section class="public-content">
+    <div class="public-stats">
+      <article><strong>{{ statistics?.totalObras || 0 }}</strong><span>Obras publicadas</span></article>
+      <article><strong>{{ statistics?.enEjecucion || 0 }}</strong><span>En ejecución</span></article>
+      <article><strong>{{ statistics?.concluidas || 0 }}</strong><span>Concluidas</span></article>
+      <article><strong>{{ statistics?.promedioAvanceFisico || 0 }}%</strong><span>Avance promedio</span></article>
+    </div>
+
+    <form [formGroup]="filters" (ngSubmit)="search()" class="public-search">
+      <input formControlName="busqueda" placeholder="Buscar por nombre, código, distrito o comunidad">
+      <select formControlName="estado">
+        <option value="">Todos los estados</option>
+        <option value="REGISTRADO">Registrado</option>
+        <option value="PLANIFICADO">Planificado</option>
+        <option value="EN EJECUCIÓN">En ejecución</option>
+        <option value="SUSPENDIDO">Suspendido</option>
+        <option value="CONCLUIDO">Concluido</option>
+        <option value="CANCELADO">Cancelado</option>
+      </select>
+      <button class="primary" type="submit">Buscar</button>
+    </form>
+
+    @if (error) { <div class="alert">{{ error }}</div> }
+    @if (loading) {
+      <p class="muted pad">Cargando obras…</p>
+    } @else {
+      <div class="public-grid">
+        @for (project of projects; track project.id) {
+          <article class="public-card">
+            @if (project.fotografiaPrincipal) {
+              <img [src]="absoluteUrl(project.fotografiaPrincipal)" [alt]="project.nombre">
+            } @else {
+              <div class="public-card-placeholder">GAMP</div>
+            }
+            <div class="public-card-body">
+              <small>{{ project.codigo }}</small>
+              <h2>{{ project.nombre }}</h2>
+              <p>{{ project.ubicacion }}{{ project.distrito ? ' · ' + project.distrito : '' }}</p>
+              <span class="status">{{ project.estado }}</span>
+              <div class="public-progress"><div [style.width.%]="project.avanceFisico"></div></div>
+              <div class="public-progress-label"><strong>{{ project.avanceFisico }}%</strong><span>Avance físico</span></div>
+              <div class="public-date">Conclusión prevista: {{ project.fechaFin | date:'dd/MM/yyyy' }}</div>
+              <a [routerLink]="['/publico', project.id]" class="public-detail">Ver detalles</a>
+            </div>
+          </article>
+        } @empty {
+          <p class="muted pad">No se encontraron obras publicadas.</p>
+        }
+      </div>
+    }
+  </section>
+</main>

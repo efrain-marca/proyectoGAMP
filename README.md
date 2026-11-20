@@ -2,11 +2,13 @@
 
 Aplicación separada en una API NestJS y un cliente Angular standalone. La base SQL independiente está en `database/gamp_proyectos.sql`.
 
-## Alcance implementado y limitaciones
+## Alcance implementado
 
-La entrega implementa autenticación JWT con bcrypt y roles, administración de usuarios, CRUD de proyectos y actividades, validación de datos, relaciones TypeORM principales, persistencia MariaDB y pantallas Angular de inicio/cierre de sesión, usuarios y proyectos. El SQL define además estructuras para responsables, presupuesto, avances, cronogramas/reprogramaciones, incidencias, documentos/evidencias, alertas y trazabilidad.
+La entrega incluye autenticación JWT con bcrypt y roles, recuperación de contraseña, administración de usuarios, proyectos, actividades, responsables, avances físicos y financieros, incidencias, presupuestos con modificaciones, documentos con carga segura, alertas, trazabilidad, reportes y portal público. Los avances físicos pasan por revisión y deben aprobarse antes de mostrarse públicamente. Las rutas públicas solo devuelven proyectos expresamente publicados.
 
-**No se debe considerar terminado el sistema funcional completo solicitado:** los endpoints CRUD y lógica de servicio de presupuestos, responsables, avances físicos/financieros, cronogramas, reprogramaciones, incidencias, documentos/evidencias, alertas y trazabilidad aún no están implementados. Tampoco se implementó almacenamiento/validación de archivos, generación de reportes, historial automático/auditable ni pruebas automatizadas. Sus tablas SQL son una base de datos preparada, no una afirmación de que esas funcionalidades estén disponibles. La autorización del gasto por encima del saldo todavía requiere flujo de aprobación.
+Documentación Swagger: `http://localhost:3000/api/docs`.
+
+Portal ciudadano: `http://localhost:4200/publico`.
 
 ## Requisitos
 

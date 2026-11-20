@@ -1,0 +1,15 @@
+<section class="login-card">
+  <div class="login-emblem">P</div>
+  <p class="eyebrow">GOBIERNO AUTÓNOMO MUNICIPAL</p>
+  <h1>Bienvenido</h1>
+  <p class="muted">Ingresa para continuar al sistema de proyectos.</p>
+  @if (error) { <div class="alert">{{ error }}</div> }
+  <form [formGroup]="form" (ngSubmit)="submit()">
+    <label>Correo electrónico<input type="email" formControlName="correo" placeholder="nombre@gamp.gob.bo"></label>
+    @if (form.controls.correo.touched && form.controls.correo.invalid) { <small class="validation">Ingresa un correo válido.</small> }
+    <label>Contraseña<input type="password" formControlName="password" placeholder="••••••••"></label>
+    @if (form.controls.password.touched && form.controls.password.invalid) { <small class="validation">La contraseña debe tener al menos 8 caracteres.</small> }
+    <button class="primary full" type="submit" [disabled]="loading">{{ loading ? 'Ingresando…' : 'Iniciar sesión' }}</button>
+  </form>
+  <p class="secure">Acceso institucional seguro</p>
+</section>

@@ -1,0 +1,27 @@
+<section class="page">
+  <div class="page-heading"><div><p class="eyebrow">SEGUIMIENTO OPERATIVO</p><h1>Actividades</h1><p class="muted">Planifica actividades y controla su avance físico.</p></div><button class="primary" (click)="startNew()">+ Nueva actividad</button></div>
+  @if (error) { <div class="alert">{{ error }}</div> }
+  @if (editing) {
+    <section class="panel form-panel"><div class="panel-heading"><h2>{{ editing.id ? 'Editar actividad' : 'Registrar actividad' }}</h2><button class="text-button" (click)="cancel()">Cancelar</button></div>
+      <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
+        <label>Proyecto<select formControlName="proyectoId">@for (project of projects; track project.id) { <option [ngValue]="project.id">{{ project.nombre }}</option> }</select></label>
+        <label>Nombre<input appTextOnly formControlName="nombre"></label>
+        <label class="span-two">Descripción<textarea appTextOnly rows="2" formControlName="descripcion"></textarea></label>
+        <label>Fecha de inicio<input type="date" formControlName="fechaInicio"></label>
+        <label>Fecha de conclusión<input type="date" formControlName="fechaFin"></label>
+        <label>Avance (%)<input type="number" min="0" max="100" step="0.01" formControlName="avance"></label>
+        @if (form.controls.nombre.touched && form.controls.nombre.invalid) { <small class="validation">El nombre solo admite letras y espacios.</small> }
+        @if (form.controls.avance.touched && form.controls.avance.invalid) { <small class="validation">El avance debe estar entre 0 y 100.</small> }
+        @if (form.controls.fechaFin.touched && form.controls.fechaFin.value && form.controls.fechaInicio.value && form.controls.fechaFin.value < form.controls.fechaInicio.value) { <small class="validation span-two">La fecha de conclusión no puede ser anterior al inicio.</small> }
+        <div class="form-actions"><button class="primary" [disabled]="saving">{{ saving ? 'Guardando…' : 'Guardar actividad' }}</button></div>
+      </form>
+    </section>
+  }
+  <section class="panel"><div class="panel-heading"><h2>Actividades registradas <span class="count">{{ activities.length }}</span></h2></div>
+    @if (loading) { <p class="muted pad">Cargando actividades…</p> } @else if (activities.length) {
+      <div class="table-wrap"><table><thead><tr><th>Actividad</th><th>Proyecto</th><th>Fechas</th><th>Avance</th><th></th></tr></thead><tbody>
+        @for (activity of activities; track activity.id) { <tr><td class="strong">{{ activity.nombre }}</td><td>{{ activity.proyecto.nombre }}</td><td>{{ activity.fechaInicio | date:'dd/MM/yy' }} — {{ activity.fechaFin | date:'dd/MM/yy' }}</td><td>{{ Number(activity.avance).toFixed(2) }}%</td><td><button class="text-button" (click)="edit(activity)">Editar</button> <button class="text-button danger" (click)="deleteActivity(activity)">Eliminar</button></td></tr> }
+      </tbody></table></div>
+    } @else { <p class="muted pad">No hay actividades registradas.</p> }
+  </section>
+</section>

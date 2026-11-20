@@ -18,6 +18,23 @@ export class UsuariosService {
     return this.repo.createQueryBuilder('usuario').addSelect('usuario.passwordHash').where('usuario.correo = :correo', { correo }).getOne();
   }
 
+  async setResetToken(correo: string, token: string, expires: Date): Promise<void> {
+    const user = await this.repo.findOneBy({ correo });
+    if (!user) return;
+    await this.repo.update(user.id, { resetToken: token, resetExpires: expires });
+  }
+
+  async resetPassword(token: string, password: string): Promise<void> {
+    const user = await this.repo.createQueryBuilder('usuario')
+      .addSelect('usuario.passwordHash')
+      .addSelect('usuario.resetToken')
+      .addSelect('usuario.resetExpires')
+      .where('usuario.resetToken = :token', { token })
+      .getOne();
+    if (!user || !user.resetExpires || user.resetExpires.getTime() < Date.now()) throw new Error('El enlace de recuperación es inválido o expiró');
+    await this.repo.update(user.id, { passwordHash: await bcrypt.hash(password, 12), resetToken: null, resetExpires: null });
+  }
+
   findForAuthentication(id: number): Promise<Usuario | null> {
     return this.repo.findOneBy({ id });
   }

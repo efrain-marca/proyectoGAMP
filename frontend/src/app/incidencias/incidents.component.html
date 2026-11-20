@@ -1,0 +1,17 @@
+<section class="page">
+  <div class="page-heading"><div><p class="eyebrow">GESTIÓN DE PROBLEMAS</p><h1>Incidencias</h1><p class="muted">Registra y atiende incidencias técnicas, administrativas y financieras.</p></div></div>
+  @if (error) { <div class="alert">{{ error }}</div> }
+  <section class="panel form-panel"><div class="panel-heading"><h2>Registrar incidencia</h2></div>
+    <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
+      <label>Proyecto<select formControlName="proyectoId">@for (project of projects; track project.id) { <option [ngValue]="project.id">{{ project.nombre }}</option> }</select></label>
+      <label>Prioridad<select formControlName="prioridad"><option value="BAJA">Baja</option><option value="MEDIA">Media</option><option value="ALTA">Alta</option><option value="CRITICA">Crítica</option></select></label>
+      <label>Título<input appTextOnly formControlName="titulo"></label>
+      <label>Fecha prevista de solución<input type="date" formControlName="fechaPrevistaSolucion"></label>
+      <label class="span-two">Descripción<textarea appTextOnly rows="3" formControlName="descripcion"></textarea></label>
+      <div class="form-actions"><button class="primary" [disabled]="saving">{{ saving ? 'Guardando…' : 'Registrar incidencia' }}</button></div>
+    </form>
+  </section>
+  <section class="panel"><div class="panel-heading"><h2>Incidencias registradas <span class="count">{{ incidences.length }}</span></h2></div>
+    @if (incidences.length) { <div class="table-wrap"><table><thead><tr><th>Código</th><th>Título</th><th>Proyecto</th><th>Prioridad</th><th>Estado</th><th>Fecha</th></tr></thead><tbody>@for (item of incidences; track item.id) { <tr><td>{{ item.codigo || '—' }}</td><td class="strong">{{ item.titulo }}</td><td>{{ item.proyecto.nombre }}</td><td>{{ item.prioridad }}</td><td><span class="status">{{ item.estado }}</span></td><td>{{ item.createdAt | date:'dd/MM/yyyy' }}</td></tr> }</tbody></table></div> } @else { <p class="muted pad">No hay incidencias registradas.</p> }
+  </section>
+</section>

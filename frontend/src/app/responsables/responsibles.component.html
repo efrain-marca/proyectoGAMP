@@ -1,0 +1,17 @@
+<section class="page">
+  <div class="page-heading"><div><p class="eyebrow">ASIGNACIÓN INSTITUCIONAL</p><h1>Responsables</h1><p class="muted">Asigna responsables a proyectos y conserva el historial.</p></div></div>
+  @if (error) { <div class="alert">{{ error }}</div> }
+  <section class="panel form-panel"><div class="panel-heading"><h2>Nueva asignación</h2></div>
+    <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
+      <label>Proyecto<select formControlName="proyectoId">@for (project of projects; track project.id) { <option [ngValue]="project.id">{{ project.nombre }}</option> }</select></label>
+      <label>Usuario<select formControlName="usuarioId">@for (user of users; track user.id) { <option [ngValue]="user.id">{{ user.nombre }}</option> }</select></label>
+      <label>Función o cargo<input formControlName="funcion" placeholder="Responsable de obra"></label>
+      <label>Fecha de asignación<input type="date" formControlName="fechaAsignacion"></label>
+      <label class="span-two">Observaciones<textarea rows="2" formControlName="observaciones"></textarea></label>
+      <div class="form-actions"><button class="primary" [disabled]="saving">{{ saving ? 'Asignando…' : 'Asignar responsable' }}</button></div>
+    </form>
+  </section>
+  <section class="panel"><div class="panel-heading"><h2>Asignaciones <span class="count">{{ assignments.length }}</span></h2></div>
+    @if (assignments.length) { <div class="table-wrap"><table><thead><tr><th>Responsable</th><th>Proyecto</th><th>Función</th><th>Asignación</th><th>Estado</th><th></th></tr></thead><tbody>@for (item of assignments; track item.id) { <tr><td class="strong">{{ item.usuario.nombre || item.nombre }}</td><td>{{ item.proyecto.nombre }}</td><td>{{ item.cargo }}</td><td>{{ item.fechaAsignacion | date:'dd/MM/yyyy' }}</td><td><span class="status" [class.inactive]="!item.activo">{{ item.activo ? 'Activa' : 'Finalizada' }}</span></td><td>@if (item.activo) { <button class="text-button" (click)="finalize(item)">Finalizar</button> }</td></tr> }</tbody></table></div> } @else { <p class="muted pad">No existen asignaciones.</p> }
+  </section>
+</section>

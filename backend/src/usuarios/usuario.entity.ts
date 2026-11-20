@@ -22,6 +22,9 @@ export class Usuario {
   @Column({ default: true })
   activo: boolean;
 
+  @Column({ name: 'reset_token', type: 'varchar', length: 128, nullable: true, select: false }) resetToken: string | null;
+  @Column({ name: 'reset_expires', type: 'datetime', nullable: true, select: false }) resetExpires: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

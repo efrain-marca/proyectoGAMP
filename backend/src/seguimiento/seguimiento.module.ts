@@ -7,9 +7,10 @@ import { Proyecto } from '../proyectos/proyecto.entity';
 import { Usuario } from '../usuarios/usuario.entity';
 import { SeguimientoController } from './seguimiento.controller';
 import { SeguimientoService } from './seguimiento.service';
+import { Responsable } from '../responsables/responsable.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Proyecto, Actividad, AvanceFisico, AvanceFinanciero, Usuario])],
+  imports: [TypeOrmModule.forFeature([Proyecto, Actividad, AvanceFisico, AvanceFinanciero, Usuario, Responsable])],
   controllers: [SeguimientoController], providers: [SeguimientoService],
 })
 export class SeguimientoModule {}

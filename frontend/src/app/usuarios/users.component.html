@@ -1,0 +1,26 @@
+<section class="page">
+  <div class="page-heading"><div><p class="eyebrow">ADMINISTRACIÓN</p><h1>Gestión de usuarios</h1><p class="muted">Administra las cuentas y niveles de acceso del sistema.</p></div><button class="primary" (click)="startNew()">+ Nuevo usuario</button></div>
+  @if (error) { <div class="alert">{{ error }}</div> }
+  @if (editing) {
+    <section class="panel form-panel"><div class="panel-heading"><h2>{{ editing.id ? 'Editar usuario' : 'Registrar usuario' }}</h2><button class="text-button" (click)="cancel()">Cancelar</button></div>
+      <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
+        <label>Nombre completo<input appTextOnly formControlName="nombre"></label>
+        <label>Correo electrónico<input type="email" formControlName="correo"></label>
+        @if (!editing.id) { <label>Contraseña<input type="password" formControlName="password" autocomplete="new-password"></label> }
+        <label>Rol<select formControlName="rol"><option value="ADMINISTRADOR">Administrador</option><option value="SUPERVISOR">Supervisor</option><option value="TECNICO">Técnico</option><option value="CONSULTA">Consulta</option></select></label>
+        @if (editing.id) { <label>Estado<select formControlName="activo"><option [ngValue]="true">Activo</option><option [ngValue]="false">Inactivo</option></select></label> }
+        @if (form.controls.nombre.touched && form.controls.nombre.invalid) { <small class="validation span-two">El nombre solo admite letras y espacios.</small> }
+        @if (form.controls.correo.touched && form.controls.correo.invalid) { <small class="validation span-two">Ingresa un correo electrónico válido.</small> }
+        @if (!editing.id && form.controls.password.touched && form.controls.password.invalid) { <small class="validation span-two">La contraseña debe tener al menos 8 caracteres.</small> }
+        <div class="form-actions"><button class="primary" type="submit" [disabled]="saving">{{ saving ? 'Guardando…' : 'Guardar usuario' }}</button></div>
+      </form>
+    </section>
+  }
+  <section class="panel"><div class="panel-heading"><h2>Usuarios registrados <span class="count">{{ users.length }}</span></h2></div>
+    @if (loading) { <p class="muted pad">Cargando usuarios…</p> } @else if (users.length) {
+      <div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody>
+        @for (user of users; track user.id) { <tr><td class="strong">{{ user.nombre }}</td><td>{{ user.correo }}</td><td><span class="role">{{ user.rol }}</span></td><td><span class="status" [class.inactive]="!user.activo">{{ user.activo ? 'Activo' : 'Inactivo' }}</span></td><td><button class="text-button" (click)="edit(user)">Editar</button> <button class="text-button danger" (click)="deleteUser(user)">Eliminar</button></td></tr> }
+      </tbody></table></div>
+    } @else { <p class="muted pad">No hay usuarios registrados.</p> }
+  </section>
+</section>

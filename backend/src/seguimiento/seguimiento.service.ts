@@ -9,6 +9,7 @@ import { CrearAvanceFisicoDto } from '../avances-fisicos/dto/crear-avance-fisico
 import { Proyecto } from '../proyectos/proyecto.entity';
 import { Usuario } from '../usuarios/usuario.entity';
 import { UserRole } from '../common/roles';
+import { Responsable } from '../responsables/responsable.entity';
 
 @Injectable()
 export class SeguimientoService {
@@ -19,6 +20,7 @@ export class SeguimientoService {
     @InjectRepository(AvanceFisico) private readonly fisicos: Repository<AvanceFisico>,
     @InjectRepository(AvanceFinanciero) private readonly financieros: Repository<AvanceFinanciero>,
     @InjectRepository(Usuario) private readonly usuarios: Repository<Usuario>,
+    @InjectRepository(Responsable) private readonly responsables: Repository<Responsable>,
   ) {}
 
   listPhysical(): Promise<AvanceFisico[]> {
@@ -26,6 +28,11 @@ export class SeguimientoService {
   }
 
   async addPhysical(dto: CrearAvanceFisicoDto, userId: number): Promise<AvanceFisico> {
+    const usuarioRol = await this.usuarios.findOneBy({ id: userId });
+    if (usuarioRol?.rol !== UserRole.ADMINISTRADOR && usuarioRol?.rol !== UserRole.SUPERVISOR) {
+      const assigned = await this.responsables.exists({ where: { usuario: { id: userId }, proyecto: { id: dto.proyectoId }, activo: true } });
+      if (!assigned) throw new ForbiddenException('No tiene asignado este proyecto');
+    }
     const [proyecto, usuario] = await Promise.all([this.proyectos.findOneBy({ id: dto.proyectoId }), this.usuarios.findOneBy({ id: userId })]);
     if (!proyecto || !usuario) throw new NotFoundException('Proyecto o usuario no encontrado');
     let actividad: Actividad | null = null;
@@ -33,7 +40,36 @@ export class SeguimientoService {
       actividad = await this.actividades.findOne({ where: { id: dto.actividadId }, relations: { proyecto: true } });
       if (!actividad || actividad.proyecto.id !== proyecto.id) throw new NotFoundException('La actividad no pertenece al proyecto indicado');
     }
-    return this.fisicos.save(this.fisicos.create({ proyecto, actividad: actividad ?? undefined, usuario, porcentaje: String(dto.porcentaje), observacion: dto.observacion }));
+    if (dto.porcentaje < 0 || dto.porcentaje > 100) throw new ForbiddenException('El porcentaje debe estar entre 0 y 100');
+    const calculated = await this.getProjectPhysicalAdvance(proyecto.id);
+    const previous = actividad ? Number(actividad.avance) : (calculated >= 0 ? calculated : 0);
+    if (dto.porcentaje < previous) throw new ForbiddenException('No se permiten disminuciones arbitrarias del avance');
+    const advance = this.fisicos.create({
+      proyecto,
+      actividad: actividad ?? undefined,
+      usuario,
+      porcentaje: String(dto.porcentaje),
+      porcentajeAnterior: String(previous),
+      incremento: String(dto.porcentaje - previous),
+      descripcionTrabajo: dto.descripcionTrabajo ?? null,
+      observacion: dto.observacion,
+      estado: 'EN_REVISION',
+      publicado: false,
+    });
+    if (actividad) {
+      actividad.avance = String(dto.porcentaje);
+      await this.actividades.save(actividad);
+    }
+    return this.fisicos.save(advance);
+  }
+
+  private async getProjectPhysicalAdvance(projectId: number): Promise<number> {
+    const activities = await this.actividades.find({ where: { proyecto: { id: projectId } } });
+    if (!activities.length) return 0;
+    if (activities.some((activity) => Number(activity.peso) <= 0)) return -1;
+    const totalWeight = activities.reduce((sum, activity) => sum + Number(activity.peso), 0);
+    if (Math.abs(totalWeight - 100) > 0.01) return -1;
+    return activities.reduce((sum, activity) => sum + Number(activity.peso) * Number(activity.avance) / 100, 0);
   }
 
   listFinancial(): Promise<AvanceFinanciero[]> {
@@ -77,6 +113,47 @@ export class SeguimientoService {
       fechaFin: a.fechaFin,
       avance: Number(a.avance),
     }));
+  }
+
+  pendingPhysical(): Promise<AvanceFisico[]> {
+    return this.fisicos.find({ where: [{ estado: 'EN_REVISION' }, { estado: 'BORRADOR' }], relations: { proyecto: true, actividad: true, usuario: true }, order: { fecha: 'DESC' } });
+  }
+
+  async approvePhysical(id: number): Promise<AvanceFisico> {
+    const advance = await this.fisicos.findOne({ where: { id }, relations: { proyecto: true, actividad: true } });
+    if (!advance) throw new NotFoundException('Avance no encontrado');
+    advance.estado = 'PUBLICADO';
+    advance.publicado = true;
+    return this.fisicos.save(advance);
+  }
+
+  async observePhysical(id: number, observacion: string): Promise<AvanceFisico> {
+    const advance = await this.fisicos.findOneBy({ id });
+    if (!advance) throw new NotFoundException('Avance no encontrado');
+    advance.estado = 'OBSERVADO';
+    advance.publicado = false;
+    advance.observacion = observacion || advance.observacion;
+    return this.fisicos.save(advance);
+  }
+
+  async dashboard() {
+    const projects = await this.proyectos.find();
+    const activities = await this.actividades.find({ relations: { proyecto: true } });
+    const financial = await this.financieros.createQueryBuilder('avance').select('COALESCE(SUM(avance.monto), 0)', 'total').getRawOne<{ total: string }>();
+    const incidencias = await this.dataSource.getRepository('incidencias').count();
+    const pendientes = await this.dataSource.getRepository('incidencias').count({ where: { estado: 'ABIERTA' } });
+    const today = new Date().toISOString().slice(0, 10);
+    return {
+      totalProyectos: projects.length,
+      enEjecutucion: projects.filter((project) => project.estado === 'EN EJECUCIÓN').length,
+      concluidos: projects.filter((project) => project.estado === 'CONCLUIDO').length,
+      suspendidos: projects.filter((project) => project.estado === 'SUSPENDIDO' || project.estado === 'PAUSADO').length,
+      presupuestoVigente: projects.reduce((sum, project) => sum + Number(project.presupuesto), 0),
+      ejecucionFinanciera: Number(financial?.total ?? 0),
+      incidencias: Number(incidencias),
+      incidenciasPendientes: Number(pendientes),
+      actividadesProximas: activities.filter((activity) => activity.fechaFin >= today).slice(0, 10),
+    };
   }
 
   async projectReport() {

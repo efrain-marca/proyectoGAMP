@@ -23,6 +23,12 @@ import { Documento } from './documentos/documento.entity';
 import { Evidencia } from './evidencias/evidencia.entity';
 import { Alerta } from './alertas/alerta.entity';
 import { Trazabilidad } from './trazabilidad/trazabilidad.entity';
+import { ResponsablesModule } from './responsables/responsables.module';
+import { PublicoModule } from './publico/publico.module';
+import { IncidenciasModule } from './incidencias/incidencias.module';
+import { PresupuestosModule } from './presupuestos/presupuestos.module';
+import { DocumentosModule } from './documentos/documentos.module';
+import { TrazabilidadModule } from './trazabilidad/trazabilidad.module';
 
 @Module({
   imports: [
@@ -67,6 +73,12 @@ import { Trazabilidad } from './trazabilidad/trazabilidad.entity';
     ProyectosModule,
     ActividadesModule,
     SeguimientoModule,
+    ResponsablesModule,
+    PublicoModule,
+    IncidenciasModule,
+    PresupuestosModule,
+    DocumentosModule,
+    TrazabilidadModule,
   ],
 })
 export class AppModule {}

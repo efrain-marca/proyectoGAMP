@@ -24,6 +24,11 @@ export class Incidencia {
   @Column({ type: 'text' }) descripcion: string;
   @Column({ type: 'enum', enum: PrioridadIncidencia, default: PrioridadIncidencia.MEDIA }) prioridad: PrioridadIncidencia;
   @Column({ type: 'enum', enum: EstadoIncidencia, default: EstadoIncidencia.ABIERTA }) estado: EstadoIncidencia;
+  @Column({ name: 'codigo', type: 'varchar', length: 40, nullable: true }) codigo: string | null;
+  @Column({ name: 'categoria', type: 'varchar', length: 30, default: 'OTRAS' }) categoria: 'TECNICAS' | 'ADMINISTRATIVAS' | 'FINANCIERAS' | 'CLIMATICAS' | 'MATERIALES' | 'PERSONAL' | 'OTRAS';
+  @Column({ name: 'fecha_prevista_solucion', type: 'date', nullable: true }) fechaPrevistaSolucion: string | null;
+  @Column({ name: 'solucion_aplicada', type: 'text', nullable: true }) solucionAplicada: string | null;
+  @ManyToOne(() => Usuario, { nullable: true, onDelete: 'SET NULL' }) @JoinColumn({ name: 'responsable_atencion_id' }) responsableAtencion: Usuario | null;
   @CreateDateColumn({ name: 'created_at', precision: 6 }) createdAt: Date;
   @UpdateDateColumn({ name: 'updated_at', precision: 6 }) updatedAt: Date;
   @ManyToOne(() => Proyecto, { onDelete: 'CASCADE' }) @JoinColumn({ name: 'proyecto_id' }) proyecto: Proyecto;
