@@ -1,0 +1,16 @@
+---
+import Shell from '../components/Shell.astro';
+if (Astro.locals.account) return Astro.redirect('/app',303);
+---
+<Shell title="Acceso municipal" simple>
+  <div class="login-grid">
+    <section class="hero login-hero"><p class="overline"><i></i> Gestión municipal de Potosí</p><h1>Seguimiento<br />de proyectos</h1><p>Consulta expedientes, registra avances y genera informes institucionales desde el panel municipal.</p></section>
+    <section class="panel login-panel"><p class="eyebrow">Panel interno</p><h2>Iniciar sesión</h2>
+      <form method="post" action="/api/auth/ingreso" data-async class="operation">
+        <label>Correo institucional<input type="email" name="email" maxlength="190" autocomplete="username" placeholder="usuario@ejemplo.bo" required /></label>
+        <label>Contraseña<input type="password" name="password" maxlength="128" autocomplete="current-password" required /></label>
+        <p class="notice error" role="alert" tabindex="-1" hidden></p><button type="submit" class="button primary">Ingresar al panel <span aria-hidden="true">↗</span></button>
+      </form>
+    </section>
+  </div>
+</Shell>

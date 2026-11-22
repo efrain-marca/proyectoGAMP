@@ -1,0 +1,36 @@
+---
+import Shell from '../../components/Shell.astro';
+import { rows } from '../../lib/db.mjs';
+import { loadReport, reportFilters, reportTypes } from '../../lib/reports.mjs';
+import { dateLabel, states, today, Issue } from '../../lib/rules.mjs';
+if (Astro.locals.account.rol!=='admin') return new Response('Acceso restringido.',{status:403});
+const query=Astro.url.searchParams;
+const projects=await rows('SELECT id,codigo,nombre FROM proyectos ORDER BY codigo');
+let report,error;
+if (query.has('tipo')) {
+  try {report=await loadReport(Astro.locals.account,reportFilters(query));}
+  catch (e) {if (!(e instanceof Issue)) throw e;error=e.message;Astro.response.status=e.status;}
+}
+const active=(key,value)=>query.get(key)===value;
+---
+<Shell title="Informes PDF">
+  <div class="page-heading"><p class="eyebrow">Documentación institucional</p><h1>Informes PDF</h1><p>Selecciona el contenido, el proyecto y la fecha de corte para descargar un informe y entregarlo a un funcionario.</p></div>
+  <section class="panel report-builder"><h2>Configurar informe</h2>
+    <form method="get" action="/app/informes" class="operation">
+      <div class="fields">
+        <label>Tipo de informe<select name="tipo">{Object.entries(reportTypes).map(([value,label])=><option value={value} selected={active('tipo',value)}>{label}</option>)}</select></label>
+        <label>Proyecto<select name="proyecto"><option value="">Todos los proyectos</option>{projects.map(p=><option value={p.id} selected={active('proyecto',p.id)}>{p.codigo} · {p.nombre}</option>)}</select></label>
+        <label>Desde (opcional)<input type="date" name="desde" max={today()} value={query.get('desde')||''} /></label>
+        <label>Fecha de corte<input type="date" name="corte" max={today()} value={query.get('corte')||today()} required /></label>
+        <label>Estado al corte<select name="estado"><option value="">Todos los estados</option>{Object.entries(states).map(([value,label])=><option value={value} selected={active('estado',value)}>{label}</option>)}</select></label>
+      </div>
+      {error&&<p class="notice error" role="alert">{error}</p>}
+      <div class="actions"><button type="submit" class="button line">Ver vista previa</button><button type="submit" formaction="/api/interno/informe.pdf" class="button primary">Descargar PDF ↓</button></div>
+    </form>
+  </section>
+  {report&&<section class="panel"><div class="section-heading"><div><h2>{report.title}</h2><p>Corte {dateLabel(report.filters.cut)} · {report.documents.length} proyectos</p></div></div>
+    {report.documents.length?report.documents.map(p=><details class="editor inset"><summary>{p.code} · {p.name}</summary>
+      <p>{p.meta}</p>{p.sections.map(section=><div class="report-section"><h3>{section.title}</h3>{section.entries.length?<ul>{section.entries.map(row=><li><strong>{row.title}</strong>{row.details.map(detail=><small>{detail}</small>)}</li>)}</ul>:<p class="empty">Sin registros para el filtro seleccionado.</p>}</div>)}
+    </details>):<p class="empty">No se encontraron proyectos para los filtros seleccionados.</p>}
+  </section>}
+</Shell>

@@ -1,0 +1,26 @@
+---
+import Shell from '../../components/Shell.astro';
+import Form from '../../components/Form.astro';
+import { rows } from '../../lib/db.mjs';
+import { roles, dateLabel } from '../../lib/rules.mjs';
+import { check, choice, field, select } from '../../lib/fields.mjs';
+if (Astro.locals.account.rol!=='admin') return new Response('Acceso restringido.',{status:403});
+const query=Astro.url.searchParams,q=(query.get('q')||'').trim().slice(0,120);
+const raw=Number(query.get('pagina')||1),page=Number.isSafeInteger(raw)?Math.max(1,Math.min(raw,10000)):1;
+const search='%'+q.replace(/[!%_]/g,c=>'!'+c)+'%';
+const users=await rows("SELECT id,nombre,correo,rol,activo,creado FROM usuarios WHERE CONCAT_WS(' ',nombre,correo) LIKE ? ESCAPE '!' ORDER BY nombre LIMIT 31 OFFSET ?",[search,(page-1)*30]);
+const options=Object.entries(roles).map(([value,label])=>choice(value,label));
+const fields=(u={})=>[field('nombre','Nombre completo',{value:u.nombre,minLength:3,maxLength:120}),
+  field('correo','Correo',{type:'email',value:u.correo,maxLength:190}),select('rol','Rol',options,{value:u.rol}),
+  field('clave',u.id?'Nueva contraseña (opcional)':'Contraseña',{type:'password',minLength:12,maxLength:128,required:!u.id}),
+  check('activo','Cuenta activa',{value:u.activo!=='0'})];
+---
+<Shell title="Usuarios">
+  <div class="page-heading"><p class="eyebrow">Administración</p><h1>Cuentas municipales</h1><p>Gestiona quién puede ingresar al panel y las funciones de cada cuenta.</p></div>
+  <details class="panel editor"><summary>Crear cuenta municipal</summary><Form action="user" back="/app/usuarios" label="Crear cuenta" fields={fields()} /></details>
+  <section class="panel"><h2>Directorio de usuarios</h2>
+    <form class="filter" method="get"><label>Nombre o correo<input name="q" value={q} maxlength="120" /></label><button class="button line">Buscar</button><a href="/app/usuarios">Limpiar</a></form>
+    <div class="items">{users.length?users.slice(0,30).map(u=><article class="list-row stack"><div class="lineup"><div><strong>{u.nombre}</strong><small>{u.correo} · {roles[u.rol]||("Rol anterior · "+u.rol)}</small><small>Alta {dateLabel(u.creado)}</small></div><span class:list={['pill',u.activo==='1'?'concluido':'neutral']}>{u.activo==='1'?'Activa':'Inactiva'}</span></div><details class="editor inset"><summary>Editar cuenta</summary><Form action="user" back="/app/usuarios" extra={{usuario:u.id}} fields={fields(u)} /></details></article>):<p class="empty">No se encontraron usuarios.</p>}</div>
+    {(page>1||users.length>30)&&<nav class="pagination" aria-label="Páginas de usuarios">{page>1&&<a href={'?'+new URLSearchParams({q,pagina:String(page-1)})}>← Anterior</a>}<span>Página {page}</span>{users.length>30&&<a href={'?'+new URLSearchParams({q,pagina:String(page+1)})}>Siguiente →</a>}</nav>}
+  </section>
+</Shell>

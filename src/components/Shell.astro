@@ -1,0 +1,56 @@
+---
+import '../styles/global.css';
+import { roles } from '../lib/rules.mjs';
+import { flash } from '../lib/http.mjs';
+const {title='Seguimiento municipal', publicPage=false, simple=false}=Astro.props;
+const user=Astro.locals.account;
+const page=Astro.url.pathname;
+const message=flash(Astro);
+const publicView=publicPage || simple || !user;
+const links=[
+  {name:'Vista general',icon:'◫',url:'/app',match:page==='/app'||page==='/app/'},
+  {name:'Proyectos',icon:'▤',url:'/app/proyectos',match:page.startsWith('/app/proyectos')},
+  ...(user?.rol==='admin'?[{name:'Informes PDF',icon:'↧',url:'/app/informes',match:page.startsWith('/app/informes')}]:[]),
+  ...(user?.rol==='admin'?[{name:'Usuarios',icon:'♙',url:'/app/usuarios',match:page.startsWith('/app/usuarios')}]:[]),
+];
+const initials=user?.nombre.split(/\s+/).slice(0,2).map(word=>word[0]).join('').toUpperCase();
+---
+<!doctype html>
+<html lang="es-BO">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#122e2c" />
+  <title>{title} · Potosí</title>
+  <script src="/forms.js" defer is:inline></script>
+</head>
+<body class:list={[publicView?'public-layout':'work-layout',simple&&'simple-layout']}>
+  <a class="skip" href="#contenido">Saltar al contenido</a>
+  {publicView ? (
+    <header class="public-header">
+      <a class="brand" href="/portal"><span class="brand-mark" aria-hidden="true"><i></i></span><span>Potosí<small>Seguimiento municipal</small></span></a>
+      <nav aria-label="Navegación pública"><a class={!simple?'active':''} href="/portal">Portal ciudadano</a><a class="button line" href="/ingresar">Acceso municipal <span aria-hidden="true">↗</span></a></nav>
+    </header>
+  ) : (
+    <aside class="sidebar">
+      <a class="brand" href="/app"><span class="brand-mark" aria-hidden="true"><i></i></span><span>Potosí<small>Seguimiento municipal</small></span></a>
+      <nav aria-label="Navegación interna">
+        <p class="nav-label">Gestión municipal</p>
+        {links.map(item=><a class:list={['nav-item',item.match&&'current']} aria-current={item.match?'page':undefined} href={item.url}><span aria-hidden="true">{item.icon}</span>{item.name}</a>)}
+        <p class="nav-label">Consulta pública</p>
+        <a class="nav-item" href="/portal"><span aria-hidden="true">↗</span>Portal ciudadano</a>
+      </nav>
+      <div class="side-footer">
+        <div class="identity"><span class="avatar">{initials}</span><span><strong>{user.nombre}</strong><small>{roles[user.rol]}</small></span></div>
+        <form action="/api/auth/salir" method="post"><button class="exit" type="submit">Cerrar sesión <span aria-hidden="true">↪</span></button></form>
+      </div>
+    </aside>
+    <header class="topbar"><div><a href="/app">Gestión municipal</a><span aria-hidden="true"> / </span><strong>{title}</strong></div><span class="top-status"><i></i> Entorno de demostración</span></header>
+  )}
+  <main id="contenido" class="main">
+    {message&&<p class="notice error" role="alert">{message}</p>}
+    <slot />
+  </main>
+  {publicView&&<footer class="public-footer">Sistema de Seguimiento de Proyectos Municipales <span>Potosí, Bolivia</span></footer>}
+</body>
+</html>

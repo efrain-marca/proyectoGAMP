@@ -1,0 +1,164 @@
+---
+import Shell from '../../../components/Shell.astro';
+import Form from '../../../components/Form.astro';
+import { canReadHistory, projectInfo } from '../../../lib/projects.mjs';
+import { allowed, dateLabel, id, isDate, money, roles, states, statusLabel, today, transitions, Issue } from '../../../lib/rules.mjs';
+import { check, choice, date, field, observation, projectFields, reason, select, textarea } from '../../../lib/fields.mjs';
+import { optional } from '../../../lib/db.mjs';
+
+const account=Astro.locals.account, query=Astro.url.searchParams;
+const tabs={obra:'Obra',resumen:'Resumen',equipo:'Equipo',cronograma:'Cronograma',presupuesto:'Presupuesto',avances:'Avances',documentos:'Documentos',incidencias:'Incidencias',alertas:'Alertas'};
+if (canReadHistory(account.rol)) tabs.historial='Historial';
+if (account.rol==='admin') tabs.publicacion='Publicación';
+const candidate=query.get('vista')||'resumen',tab=Object.hasOwn(tabs,candidate)?candidate:'resumen';
+const maybeId=key=>/^[1-9]\d{0,9}$/.test(query.get(key)||'')&&Number(query.get(key))<=4294967295?Number(query.get(key)):null;
+const from=query.get('desde')||'',until=query.get('hasta')||'';
+const validDates=(!from||isDate(from))&&(!until||isDate(until))&&(!from||!until||from<=until)&&(!until||until<=today())&&(!from||from<=today());
+const page=Math.min(10000,Math.max(1,maybeId('pagina')||1));
+let data,error;
+try {data=await projectInfo(account,id(Astro.params.id,'proyecto'),tab,{activity:maybeId('actividad'),author:maybeId('autor'),entity:(query.get('entidad')||'').slice(0,40),from:validDates?from:null,until:validDates?until:null,page});}
+catch(e){if (!(e instanceof Issue)) throw e;error=e.message;Astro.response.status=e.status;}
+const p=data?.project;
+const back='/app/proyectos/'+p?.id+'?vista='+tab;
+const at=day=>dateLabel(day);
+const current=today(), finished=p?.estado==='concluido';
+const permitted=action=>allowed(account.rol,action);
+const team=data?.team||[], docs=data?.docs||[], tasks=data?.activities||[], budgets=data?.budgets||[];
+const activeDocs=docs.filter(item=>item.vigente==='1');
+const budget=budgets.find(item=>item.vigente==='1');
+const finance=(data?.financial||[]).find(item=>item.vigente==='1');
+const pub=(data?.publications||[]).find(item=>item.activa==='1');
+const publicFileIds=new Set((data?.publicationFiles||[]).map(d=>d.documento));
+const people=[...new Map(team.filter(r=>r.activo==='1'&&r.fin>=current).map(r=>[r.usuario,r])).values()].map(r=>choice(r.usuario,r.nombre+' · '+roles[r.funcion]));
+const possibleTeam=(data?.candidates||[]).map(u=>choice(u.id,u.nombre+' · '+roles[u.rol]));
+const functionOptions=Object.entries(roles).filter(([value])=>['tecnico','finanzas','supervisor'].includes(value)).map(([value,text])=>choice(value,text));
+const documents=required=>select('documento','Documento de respaldo',activeDocs.map(d=>choice(d.id,'#'+d.id+' · '+d.nombre)),{required});
+const hasProof=activeDocs.length>0;
+const owner=options=>select('responsable','Persona responsable',people,options);
+const planned=day=>day>current?day:current;
+const download=doc=>'/api/interno/documentos/'+p.id+'-'+doc;
+const taskOptions=tasks.map(a=>choice(a.id,a.nombre));
+const percent=value=>optional(value)==null?'Sin registro':Number(value).toLocaleString('es-BO')+' %';
+const docLabel=value=>optional(value)?'#'+value:'—';
+const filtersUrl=page=>{const next=new URLSearchParams(query);next.set('pagina',String(page));return '?'+next;};
+const historical=value=>{
+  if (!optional(value)) return '—';
+  return Object.entries(JSON.parse(value)).map(([key,text])=>[key,typeof text==='object'&&text!==null?JSON.stringify(text):String(text)]);
+};
+---
+<Shell title={p?.codigo||'Proyecto'}>
+{error?<section class="panel"><h1>Proyecto no disponible</h1><p>{error}</p><a class="button line" href="/app/proyectos">Volver a proyectos</a></section>:<>
+  <div class="page-heading detail-heading">
+    <a class="back" href="/app/proyectos">← Proyectos</a>
+    <div class="section-heading"><div><p class="eyebrow">{p.codigo} · {p.unidad}</p><h1>{p.nombre}</h1><p>{p.ubicacion} · {at(p.inicio)} al {at(p.fin)}</p></div><span class:list={['pill',p.estado]}>{states[p.estado]}</span></div>
+  </div>
+  <nav class="tabs" aria-label="Expediente municipal">{Object.entries(tabs).map(([value,label])=><a href={'?vista='+value} aria-current={value===tab?'page':undefined}>{label}</a>)}</nav>
+  {tab==='resumen'&&<>
+    <div class="stats compact">
+      <article class="stat"><span class="stat-icon mint" aria-hidden="true">▤</span><strong>{tasks.length}</strong><span>Actividades</span></article>
+      <article class="stat"><span class="stat-icon lime" aria-hidden="true">✓</span><strong>{tasks.filter(a=>Number(a.porcentaje)===100).length}</strong><span>Actividades al 100 %</span></article>
+      <article class="stat"><span class="stat-icon teal" aria-hidden="true">Bs</span><strong>{money(budget?.monto)}</strong><span>Presupuesto vigente</span></article>
+      <article class="stat"><span class="stat-icon peach" aria-hidden="true">↗</span><strong>{money(finance?.acumulado)}</strong><span>Ejecución informada</span></article>
+    </div>
+    <section class="panel"><div class="section-heading"><div><h2>Ficha del proyecto</h2><p class="wrap">{p.descripcion}</p></div>{account.rol==='admin'&&<a class="button line" href={'/app/informes?proyecto='+p.id}>Generar informe PDF ↗</a>}</div>
+      <dl class="info"><div><dt>Ubicación</dt><dd>{p.ubicacion}</dd></div><div><dt>Unidad</dt><dd>{p.unidad}</dd></div><div><dt>Inicio previsto</dt><dd>{at(p.inicio)}</dd></div><div><dt>Fin previsto</dt><dd>{at(p.fin)}</dd></div></dl>
+      {permitted('edit_project')&&!finished&&<details class="editor inset"><summary>Editar ficha</summary><Form action="edit_project" project={p.id} back={back} fields={[...projectFields(p),reason()]} extra={{revision:p.revision}} /></details>}
+      {permitted('state')&&transitions[p.estado].length>0&&<details class="editor inset"><summary>Cambiar estado</summary>{hasProof?
+        <Form action="state" project={p.id} back={back} fields={[select('estado','Nuevo estado',transitions[p.estado].map(s=>choice(s,states[s]))),documents(true),reason()]} />:
+        <p class="empty">Solicita al encargado de proyecto que cargue el documento de respaldo.</p>}</details>}
+    </section>
+    <section class="panel"><h2>Cambios de estado</h2><div class="items">{data.changes.map(change=><article class="list-row"><span class:list={['pill',change.nuevo]}>{states[change.nuevo]}</span><div><strong>{change.motivo}</strong><small>{at(change.fecha)} · {change.persona}{optional(change.documento)&&<> · <a href={download(change.documento)}>Documento #{change.documento}</a></>}</small></div></article>)}</div></section>
+  </>}
+  {tab==='equipo'&&<>
+    {permitted('assign')&&!finished&&<details class="panel editor"><summary>Asignar responsable</summary>{possibleTeam.length?
+      <Form action="assign" project={p.id} back={back} label="Guardar asignación" fields={[select('responsable','Persona',possibleTeam),select('funcion','Función',functionOptions),date('inicio','Inicio',{value:planned(p.inicio),min:planned(p.inicio),max:p.fin}),date('fin','Fin',{value:p.fin,min:planned(p.inicio),max:p.fin}),reason(false)]}>
+        <p class="helper">El sistema comprueba si el supervisor tiene otro proyecto en el mismo periodo. Las fechas de inicio y fin cuentan como días ocupados.</p>
+      </Form>:<p class="empty">Todavía no hay cuentas operativas activas.</p>}</details>}
+    <section class="panel"><h2>Asignaciones y relevos</h2>
+      <div class="items">{team.length?team.map(r=><article class="list-row stack"><div class="lineup"><div><strong>{r.nombre}</strong><small>{roles[r.funcion]} · {at(r.inicio)} al {at(r.fin)}</small>{r.motivo&&<small>{r.motivo}</small>}</div><span class="pill neutral">{r.fin<current?'Finalizada':r.inicio>current?'Programada':'Vigente'}</span></div>
+        {permitted('assign')&&!finished&&r.fin>=current&&<><details class="editor inset"><summary>Registrar relevo</summary><Form action="assign" project={p.id} back={back} extra={{anterior:r.id,fin_actual:r.fin,funcion:r.funcion}} fields={[select('responsable','Reemplazo',(data.candidates||[]).filter(u=>u.rol===r.funcion&&u.id!==r.usuario).map(u=>choice(u.id,u.nombre))),date('inicio','Inicio del relevo',{min:current,max:p.fin}),date('fin','Fin',{value:p.fin,min:current,max:p.fin}),reason()]} /></details>
+        <details class="editor inset"><summary>Finalizar antes de la fecha prevista</summary><Form action="assign" project={p.id} back={back} extra={{anterior:r.id,fin_actual:r.fin,finalizar:'1'}} fields={[date('inicio','Primer día libre',{min:current,max:r.fin}),reason()]} label="Finalizar asignación" style="line" /></details></>}
+      </article>):<p class="empty">No hay responsables asignados.</p>}</div>
+    </section>
+  </>}
+  {tab==='obra'&&<section class="panel"><h2>Supervisión de obra</h2>
+    {permitted('work')&&!finished&&<details class="editor inset"><summary>Registrar inspección de obra</summary><Form action="work" project={p.id} back={back} fields={[date('fecha','Fecha de visita',{min:p.inicio,max:current,value:current}),documents(true),observation()]} /></details>}
+    <div class="items">{data.work.length?data.work.map(w=><article class="list-row"><div><strong>{at(w.fecha)} · {w.persona}</strong><p>{w.observacion}</p><a href={download(w.documento)}>Respaldo #{w.documento}</a></div></article>):<p class="empty">Sin inspecciones registradas.</p>}</div></section>}
+  {tab==='cronograma'&&<>
+    {permitted('extension')&&!finished&&<details class="panel editor"><summary>Registrar ampliación del proyecto</summary><p>Vencimiento vigente {at(p.fin)}</p><Form action="extension" project={p.id} back={back} extra={{revision:p.revision}} fields={[date('fin','Nuevo vencimiento',{min:planned(p.fin)}),documents(true),reason()]} /></details>}
+    {data.extensions.length>0&&<section class="panel"><h2>Ampliaciones de plazo</h2>{data.extensions.map(e=><p>{at(JSON.parse(e.anterior).fin)} → {at(JSON.parse(e.nuevo).fin)} · {e.motivo} · {e.persona}</p>)}</section>}
+    {permitted('activity')&&!finished&&<details class="panel editor"><summary>Registrar actividad</summary><Form action="activity" project={p.id} back={back} fields={[field('nombre','Nombre de la actividad',{minLength:3,maxLength:150}),owner(),date('inicio','Inicio previsto',{min:planned(p.inicio),max:p.fin}),date('fin','Fin previsto',{min:planned(p.inicio),max:p.fin})]} /></details>}
+    <section class="panel"><h2>Actividades programadas</h2>
+      <div class="items">{tasks.length?tasks.map(a=><article class="list-row stack"><div class="lineup"><div><strong>{a.nombre}</strong><small>{a.persona} · Plan vigente {at(a.inicio)} al {at(a.fin)}</small><small>Plan inicial {at(a.inicio_original)} al {at(a.fin_original)}</small></div><span class:list={['pill',a.fin<current&&Number(a.porcentaje)!==100?'suspendido':'neutral']}>{percent(a.porcentaje)}</span></div>
+        {permitted('schedule')&&!finished&&<details class="editor inset"><summary>Reprogramar actividad</summary>{hasProof?<Form action="schedule" project={p.id} back={back} extra={{actividad:a.id,inicio_actual:a.inicio,fin_actual:a.fin,responsable_actual:a.responsable}} fields={[owner({value:a.responsable}),date('inicio','Nuevo inicio',{value:a.inicio,min:p.inicio,max:p.fin}),date('fin','Nuevo fin',{value:a.fin,min:current,max:p.fin}),documents(true),reason()]} />:<p class="empty">Carga primero un respaldo en Documentos.</p>}</details>}
+      </article>):<p class="empty">Aún no hay actividades en el cronograma.</p>}</div>
+    </section>
+    <section class="panel"><h2>Reprogramaciones</h2>{data.schedules.length?<div class="items">{data.schedules.map(r=><article class="list-row"><div><strong>{r.nombre}</strong><small>{at(r.inicio_previo)}–{at(r.fin_previo)} → {at(r.inicio)}–{at(r.fin)}</small><p>{r.motivo}</p><small>{r.persona} · {at(r.fecha)} · <a href={download(r.documento)}>Respaldo #{r.documento}</a></small></div></article>)}</div>:<p class="empty">Sin reprogramaciones.</p>}</section>
+  </>}
+  {tab==='presupuesto'&&<>
+    {permitted('budget')&&!finished&&<details class="panel editor"><summary>{budget?'Registrar modificación':'Registrar presupuesto inicial'}</summary>{hasProof?
+      <Form action="budget" project={p.id} back={back} extra={{referencia:budget?.id}} fields={[field('monto','Monto en bolivianos (Bs)',{type:'number',min:'0',max:'9999999999999.99',step:'0.01'}),date('fecha','Fecha de vigencia',{value:current,min:budget?.fecha,max:current}),documents(true),reason(Boolean(budget))]} />:
+      <p class="empty">Solicita al encargado de proyecto que cargue el respaldo del presupuesto.</p>}</details>}
+    <section class="panel"><h2>Presupuesto y modificaciones</h2><p>Vigente <strong>{money(budget?.monto)}</strong></p>
+      {budgets.length?<div class="table-scroll"><table><thead><tr><th>Monto</th><th>Anterior</th><th>Vigencia</th><th>Detalle</th></tr></thead><tbody>{budgets.map(b=><tr><td><strong>{money(b.monto)}</strong><small>{b.vigente==='1'?'Vigente':'Anterior'}</small></td><td>{optional(b.previo)?money(b.previo):'—'}</td><td>{at(b.fecha)}</td><td>{b.persona} · <a href={download(b.documento)}>Respaldo #{b.documento}</a><small>{b.motivo}</small></td></tr>)}</tbody></table></div>:<p class="empty">El proyecto aún no tiene presupuesto registrado.</p>}</section>
+  </>}
+  {tab==='avances'&&<>
+    {permitted('physical')&&!finished&&<details class="panel editor"><summary>Registrar avance físico</summary><Form action="physical" project={p.id} back={back} fields={[select('actividad','Actividad',taskOptions),date('corte','Fecha de corte',{value:current,min:p.inicio,max:current}),field('porcentaje','Porcentaje acumulado',{type:'number',min:'0',max:'100',step:'0.01'}),documents(true),observation()]} /></details>}
+    {permitted('financial')&&!finished&&<details class="panel editor"><summary>Registrar avance financiero</summary>{hasProof&&budget?<Form action="financial" project={p.id} back={back} fields={[field('periodo','Periodo',{type:'month',value:current.slice(0,7),max:current.slice(0,7)}),date('corte','Fecha de corte',{value:current,min:p.inicio,max:current}),field('monto','Importe acumulado en Bs',{type:'number',min:'0',max:'9999999999999.99',step:'0.01'}),documents(true),observation(),check('confirmar_exceso','Confirmo el registro para revisión si el importe supera el presupuesto del corte')]} />:<p class="empty">Registra el presupuesto y un documento de respaldo para continuar.</p>}</details>}
+    <section class="panel"><h2>Avance físico por actividad</h2>
+      {!validDates&&<p class="notice error">Introduce un rango válido hasta la fecha actual.</p>}
+      <form class="filter" method="get"><input type="hidden" name="vista" value="avances" /><label>Actividad<select name="actividad"><option value="">Todas</option>{taskOptions.map(a=><option value={a.value} selected={String(a.value)===query.get('actividad')}>{a.label}</option>)}</select></label><label>Desde<input type="date" name="desde" value={from} max={current} /></label><label>Hasta<input type="date" name="hasta" value={until} max={current} /></label><button class="button line">Filtrar</button></form>
+      <div class="items">{data.physical.length?data.physical.map(f=><article class="list-row stack"><div class="lineup"><div><strong>{f.nombre} · {percent(f.porcentaje)}</strong><small>{at(f.corte)} · {f.persona}{optional(f.reemplaza)?' · Rectificación #'+f.reemplaza:''}</small><p>{f.observacion}</p>{f.motivo&&<small>{f.motivo}</small>}{optional(f.documento)&&<small><a href={download(f.documento)}>Respaldo #{f.documento}</a></small>}</div><span class="pill neutral">{f.vigente==='1'?'Vigente':'Rectificado'}</span></div>
+        {permitted('physical')&&f.vigente==='1'&&<details class="editor inset"><summary>Rectificar avance físico</summary><Form action="physical" project={p.id} back={back} extra={{actividad:f.actividad,corte:f.corte,rectifica:f.id}} fields={[field('porcentaje','Porcentaje corregido',{type:'number',min:'0',max:'100',step:'0.01',value:f.porcentaje}),documents(true),observation(),reason()]} /></details>}
+      </article>):<p class="empty">Sin avances físicos para los filtros seleccionados.</p>}</div>
+    </section>
+    <section class="panel"><h2>Avance financiero por periodo</h2>
+      <div class="items">{data.financial.length?data.financial.map(f=><article class="list-row stack"><div class="lineup"><div><strong>{f.periodo} · {money(f.acumulado)}</strong><small>{at(f.corte)} · {f.persona} · <a href={download(f.documento)}>Respaldo #{f.documento}</a></small><small>Presupuesto del corte {money(f.referencia)} · {Number(f.referencia)>0?percent((100*Number(f.acumulado)/Number(f.referencia)).toFixed(2)):'Porcentaje no calculable'}</small><p>{f.observacion}</p>{f.motivo&&<small>{f.motivo}</small>}</div><span class:list={['pill',f.exceso==='1'?'suspendido':'neutral']}>{f.vigente==='0'?'Rectificado':f.exceso==='1'?'En revisión':'Vigente'}</span></div>
+        {permitted('financial')&&f.vigente==='1'&&hasProof&&<details class="editor inset"><summary>Rectificar avance financiero</summary><Form action="financial" project={p.id} back={back} extra={{periodo:f.periodo,corte:f.corte,rectifica:f.id}} fields={[field('monto','Importe corregido en Bs',{type:'number',min:'0',max:'9999999999999.99',step:'0.01',value:f.acumulado}),documents(true),observation(),reason(),check('confirmar_exceso','Confirmo el registro para revisión si supera el presupuesto')]} /></details>}
+      </article>):<p class="empty">Sin informes financieros registrados.</p>}</div>
+    </section>
+  </>}
+  {tab==='documentos'&&<>
+    {permitted('document')&&<details class="panel editor"><summary>Subir documento o evidencia</summary><Form action="document" project={p.id} back={back} upload fields={[
+      field('archivo','Archivo',{type:'file',accept:'.pdf,.jpg,.jpeg,.png',wide:true,help:'PDF, JPG o PNG. Máximo 10 MB.'}),
+      date('fecha','Fecha del documento',{value:current,max:current}),select('anterior','Versión a reemplazar',activeDocs.map(d=>choice(d.id,'#'+d.id+' · '+d.nombre)),{required:false,placeholder:'Primera versión'}),
+      textarea('descripcion','Descripción',500,{minLength:5}),reason(false)
+    ]} label="Subir documento" /></details>}
+    <section class="panel"><h2>Archivos y versiones</h2>
+      {docs.length?<div class="table-scroll"><table><thead><tr><th>Archivo</th><th>Fecha</th><th>Versión</th><th>Autor</th></tr></thead><tbody>{docs.map(d=><tr><td><a class="record-link" href={download(d.id)}>{d.nombre} ↧</a><small>#{d.id} · {d.descripcion}</small></td><td>{at(d.fecha)}</td><td>{d.vigente==='1'?'Vigente':'Reemplazada'}<small>{optional(d.anterior)?'Versión anterior #'+d.anterior:'Primera versión'}{d.motivo?' · '+d.motivo:''}</small></td><td>{d.persona}</td></tr>)}</tbody></table></div>:<p class="empty">Todavía no hay documentos cargados.</p>}</section>
+  </>}
+  {tab==='incidencias'&&<>
+    {permitted('incident')&&!finished&&<details class="panel editor"><summary>Registrar incidencia interna</summary><Form action="incident" project={p.id} back={back} fields={[owner(),date('fecha','Fecha de la incidencia',{value:current,min:p.inicio,max:current}),textarea('descripcion','Descripción',750,{minLength:10})]} /></details>}
+    <section class="panel"><h2>Incidencias del proyecto</h2><div class="items">{data.incidents.length?data.incidents.map(i=><article class="list-row stack"><div class="lineup"><div><strong>Incidencia #{i.id}</strong><small>{at(i.fecha)} · {i.persona}</small><p>{i.descripcion}</p></div><span class:list={['pill',i.estado==='resuelta'?'concluido':'neutral']}>{statusLabel(i.estado)}</span></div>
+      {data.actions.filter(a=>a.incidencia===i.id).map(a=><div class="subitem"><strong>{a.cierre==='1'?'Resolución':'Actuación'} · {at(a.fecha)}</strong><p>{a.descripcion}</p><small>{a.persona}{optional(a.documento)&&<> · <a href={download(a.documento)}>Respaldo #{a.documento}</a></>}</small></div>)}
+      {permitted('incident_action')&&!finished&&i.estado!=='resuelta'&&<details class="editor inset"><summary>Registrar actuación</summary><Form action="incident_action" project={p.id} back={back} extra={{incidencia:i.id}} fields={[date('fecha','Fecha',{value:current,min:i.fecha,max:current}),documents(false),textarea('descripcion','Actuación o resolución',750,{minLength:10}),...(i.estado==='atencion'?[check('cerrar','Resolver la incidencia. Requiere documento de respaldo.')]:[])]} /></details>}
+    </article>):<p class="empty">Sin incidencias registradas.</p>}</div></section>
+  </>}
+  {tab==='alertas'&&<>
+    <section class="panel"><div class="section-heading"><div><h2>Plazos para revisar</h2><p>Actividades incompletas vencidas o con vencimiento dentro de siete días.</p></div></div>
+      {data.conditions.length?<div class="items">{data.conditions.map(a=><article class="list-row"><span class:list={['pill',a.fin<current?'suspendido':'neutral']}>{a.fin<current?'Vencida':'Próxima'}</span><div><strong>{a.nombre}</strong><small>{a.persona} · Vence {at(a.fin)}</small></div></article>)}</div>:<p class="empty">No hay plazos por atender.</p>}
+      {permitted('alert')&&<Form action="alert" project={p.id} back={back} label="Actualizar registros de alerta" style="line" />}
+    </section>
+    <section class="panel"><h2>Registro de alertas</h2><div class="items">{data.alerts.length?data.alerts.map(a=><article class="list-row stack"><div class="lineup"><div><strong>{a.nombre} · {statusLabel(a.tipo)}</strong><small>{a.persona} · Plazo {at(a.fin)} · Registro {at(a.creado)}</small>{optional(a.observacion)&&<p>{a.observacion}</p>}</div><span class="pill neutral">{statusLabel(a.estado)}</span></div>
+      {permitted('alert')&&a.estado==='abierta'&&<details class="editor inset"><summary>Registrar atención</summary><Form action="alert" project={p.id} back={back} extra={{alerta:a.id}} fields={[textarea('observacion','Observación de atención',500,{minLength:5})]} /></details>}
+    </article>):<p class="empty">Sin alertas registradas.</p>}</div></section>
+  </>}
+  {tab==='historial'&&<section class="panel"><h2>Historial de cambios</h2>
+    {!validDates&&<p class="notice error">Introduce un rango válido hasta la fecha actual.</p>}
+    <form class="filter" method="get"><input type="hidden" name="vista" value="historial" /><label>Actuación<select name="entidad"><option value="">Todas</option>{data.entities.map(e=><option value={e.entidad} selected={query.get('entidad')===e.entidad}>{e.entidad}</option>)}</select></label><label>Usuario<select name="autor"><option value="">Todos</option>{data.authors.map(a=><option value={a.id} selected={query.get('autor')===a.id}>{a.nombre}</option>)}</select></label><label>Desde<input type="date" name="desde" value={from} max={current} /></label><label>Hasta<input type="date" name="hasta" value={until} max={current} /></label><button class="button line">Filtrar</button><a href="?vista=historial">Limpiar</a></form>
+    <div class="items">{data.history.length?data.history.slice(0,100).map(h=><details class="editor inset"><summary>{h.entidad} · {h.accion} #{h.registro} <small>{h.persona} · {h.fecha}</small></summary><div class="versions">
+      <div><h3>Antes</h3>{optional(h.anterior)?<dl>{historical(h.anterior).map(([k,v])=><><dt>{k}</dt><dd>{v}</dd></>)}</dl>:<p>Sin valor previo.</p>}</div>
+      <div><h3>Registrado</h3>{optional(h.nuevo)?<dl>{historical(h.nuevo).map(([k,v])=><><dt>{k}</dt><dd>{v}</dd></>)}</dl>:<p>Sin valor registrado.</p>}</div>
+    </div>{h.motivo&&<p>{h.motivo}</p>}</details>):<p class="empty">No se encontraron cambios para esos filtros.</p>}</div>
+    {(page>1||data.history.length>100)&&<nav class="pagination" aria-label="Páginas del historial">{page>1&&<a href={filtersUrl(page-1)}>← Anterior</a>}<span>Página {page}</span>{data.history.length>100&&<a href={filtersUrl(page+1)}>Siguiente →</a>}</nav>}
+  </section>}
+  {tab==='publicacion'&&<>
+    <section class="panel"><div class="section-heading"><div><h2>Versión ciudadana</h2><p>{pub?'Hay una ficha aprobada y visible en el portal.':'El proyecto aún no tiene una ficha pública vigente.'}</p></div>{pub&&<a class="button line" href={'/portal/'+p.id}>Ver ficha pública ↗</a>}</div>
+      {permitted('publish')&&<details class="editor inset"><summary>{pub?'Aprobar una nueva versión':'Aprobar publicación'}</summary><p class="helper">El portal mostrará código, nombre, ubicación, unidad, estado, fechas, resumen y los documentos que selecciones. Revisa el contenido de cada archivo antes de aprobarlo.</p>
+        <Form action="publish" project={p.id} back={back} extra={{revision:p.revision,publicacion:pub?.id}} fields={[textarea('resumen','Resumen público',800,{minLength:10,value:pub?JSON.parse(pub.ficha).resumen:undefined}),field('archivos','Documentos para publicación',{type:'multi',options:activeDocs.map(d=>({...choice(d.id,'#'+d.id+' · '+d.nombre),checked:publicFileIds.has(d.id)}))}),check('aprobado','Revisé y autorizo la publicación de estos datos y documentos',{required:true})]} label="Aprobar versión" /></details>}
+      {permitted('withdraw')&&pub&&<details class="editor inset"><summary>Retirar publicación</summary><Form action="withdraw" project={p.id} back={back} extra={{publicacion:pub.id}} fields={[reason()]} label="Retirar del portal" style="line" /></details>}
+    </section>
+    <section class="panel"><h2>Versiones aprobadas</h2><div class="items">{data.publications.length?data.publications.map(v=><article class="list-row"><span class="pill neutral">{v.activa==='1'?'Vigente':'Retirada'}</span><div><strong>Versión #{v.id} · {v.persona}</strong><small>{at(v.aprobada)}</small>{optional(v.motivo)&&<p>{v.motivo} · {at(v.retirada)}</p>}</div></article>):<p class="empty">Sin publicaciones previas.</p>}</div></section>
+  </>}
+</>}
+</Shell>

@@ -1,0 +1,23 @@
+---
+import Shell from '../../../components/Shell.astro';
+import Form from '../../../components/Form.astro';
+import { listProjects } from '../../../lib/projects.mjs';
+import { dateLabel, states } from '../../../lib/rules.mjs';
+import { projectFields } from '../../../lib/fields.mjs';
+const account=Astro.locals.account,q=Astro.url.searchParams;
+const term=(q.get('q')||'').slice(0,120),raw=q.get('estado')||'',state=Object.hasOwn(states,raw)?raw:'';
+const parsed=Number(q.get('pagina')||1),page=Number.isSafeInteger(parsed)?Math.min(10000,Math.max(1,parsed)):1;
+const records=await listProjects(account,{term,state,page});
+const url=(p)=>'/app/proyectos?'+new URLSearchParams({q:term,estado:state,pagina:String(p)});
+---
+<Shell title="Proyectos">
+  <div class="page-heading"><p class="eyebrow">Expedientes municipales</p><h1>Proyectos</h1><p>Busca por nombre, código o ubicación y consulta el estado de cada proyecto.</p></div>
+  {account.rol==='admin'&&<details class="panel editor"><summary>Registrar proyecto</summary><Form action="create_project" back="/app/proyectos" fields={projectFields()} label="Registrar proyecto" /></details>}
+  <section class="panel records">
+    <form method="get" class="filter"><label>Buscar<input name="q" value={term} maxlength="120" placeholder="Nombre, código o ubicación" /></label><label>Estado<select name="estado"><option value="">Todos los estados</option>{Object.entries(states).map(([value,label])=><option value={value} selected={state===value}>{label}</option>)}</select></label><button class="button primary">Buscar</button><a href="/app/proyectos">Limpiar</a></form>
+    {records.length?<div class="table-scroll"><table><thead><tr><th>Proyecto</th><th>Unidad</th><th>Estado</th><th>Plazo</th><th></th></tr></thead><tbody>
+      {records.slice(0,20).map(p=><tr><td><a class="record-link" href={'/app/proyectos/'+p.id}>{p.nombre}</a><small>{p.codigo} · {p.ubicacion}</small></td><td>{p.unidad}</td><td><span class:list={['pill',p.estado]}>{states[p.estado]}</span></td><td>{dateLabel(p.inicio)} a {dateLabel(p.fin)}</td><td><a href={'/app/proyectos/'+p.id} aria-label={'Abrir '+p.nombre}>↗</a></td></tr>)}
+    </tbody></table></div>:<p class="empty">No se encontraron proyectos para esos filtros.</p>}
+    {(page>1||records.length>20)&&<nav class="pagination" aria-label="Páginas de proyectos">{page>1&&<a href={url(page-1)}>← Anterior</a>}<span>Página {page}</span>{records.length>20&&<a href={url(page+1)}>Siguiente →</a>}</nav>}
+  </section>
+</Shell>

@@ -1,0 +1,19 @@
+---
+import Shell from '../../components/Shell.astro';
+import { publicProject } from '../../lib/projects.mjs';
+import {dateLabel,id,states,Issue} from '../../lib/rules.mjs';
+let result,error,projectId;
+try {projectId=id(Astro.params.id,'proyecto');result=await publicProject(projectId);}
+catch(e) {error=e instanceof Issue?'La ficha solicitada no está disponible.':'El portal está temporalmente fuera de servicio.';Astro.response.status=e instanceof Issue?404:503;}
+const p=result?.ficha;
+---
+<Shell title={p?.nombre||'Ficha pública'} publicPage>
+  {error?<section class="panel"><h1>Ficha pública</h1><p>{error}</p><a class="button line" href="/portal">Volver al portal</a></section>:<>
+    <div class="page-heading detail-heading">
+      <a class="back" href="/portal">← Portal ciudadano</a>
+      <div class="section-heading"><div><p class="eyebrow">{p.codigo} · {p.unidad}</p><h1>{p.nombre}</h1><p>Publicación actualizada el {dateLabel(result.aprobada)}</p></div><span class:list={['pill',p.estado]}>{states[p.estado]}</span></div>
+    </div>
+    <section class="panel"><h2>Información del proyecto</h2><p class="wrap">{p.resumen}</p><dl class="info"><div><dt>Ubicación</dt><dd>{p.ubicacion}</dd></div><div><dt>Unidad</dt><dd>{p.unidad}</dd></div><div><dt>Inicio previsto</dt><dd>{dateLabel(p.inicio)}</dd></div><div><dt>Fin previsto</dt><dd>{dateLabel(p.fin)}</dd></div></dl></section>
+    <section class="panel"><h2>Documentos públicos</h2>{result.files.length?<div class="items">{result.files.map(d=><article class="list-row"><div><a class="record-link" href={'/api/pub/'+projectId+'-'+d.id}>{d.nombre} ↓</a><small>{d.descripcion}</small></div></article>)}</div>:<p class="empty">Esta ficha todavía no tiene documentos aprobados.</p>}</section>
+  </>}
+</Shell>

@@ -1,0 +1,29 @@
+---
+import Shell from '../../components/Shell.astro';
+import { listProjects, totals } from '../../lib/projects.mjs';
+import { dateLabel, roles, states, today } from '../../lib/rules.mjs';
+const user=Astro.locals.account;
+const [counts,recent]=await Promise.all([totals(user),listProjects(user)]);
+const stats=[
+  {label:'Proyectos visibles',value:counts.total,icon:'▤',tint:'mint'},
+  {label:'En ejecución',value:counts.ejecucion,icon:'↗',tint:'teal'},
+  {label:'Actividades vencidas',value:counts.vencidas,icon:'◷',tint:'peach'},
+  {label:'Proyectos concluidos',value:counts.concluido,icon:'✓',tint:'lime'},
+];
+---
+<Shell title="Vista general">
+  <section class="hero dashboard-hero">
+    <p class="overline"><i></i> Gobierno Autónomo Municipal de Potosí</p>
+    <h1>Seguimiento de<br />proyectos municipales</h1>
+    <p>Consulta el estado de tus proyectos, sus plazos y las actividades que requieren atención.</p>
+    <div class="hero-actions"><a class="button accent" href="/app/proyectos">Explorar proyectos <span aria-hidden="true">↗</span></a>{user.rol==='admin'&&<a class="button ghost" href="/app/informes">Generar informe PDF</a>}</div>
+  </section>
+  <div class="section-heading"><div><h2>Vista general</h2><p>{roles[user.rol]}</p></div><span class="date-tag">Al {dateLabel(today())}</span></div>
+  <div class="stats">{stats.map(s=><article class="stat"><span class:list={['stat-icon',s.tint]} aria-hidden="true">{s.icon}</span><strong>{s.value}</strong><span>{s.label}</span></article>)}</div>
+  <section class="panel records">
+    <div class="section-heading"><div><h2>Proyectos recientes</h2><p>Consulta el expediente y el cronograma de cada proyecto.</p></div><a class="button line" href="/app/proyectos">Ver todos <span aria-hidden="true">→</span></a></div>
+    {recent.length? <div class="table-scroll"><table><thead><tr><th>Proyecto</th><th>Estado</th><th>Fecha prevista de fin</th><th>Actividades</th></tr></thead><tbody>
+      {recent.slice(0,5).map(p=><tr><td><a class="record-link" href={'/app/proyectos/'+p.id}>{p.nombre}</a><small>{p.codigo} · {p.ubicacion}</small></td><td><span class:list={['pill',p.estado]}>{states[p.estado]}</span></td><td>{dateLabel(p.fin)}</td><td>{p.actividades}</td></tr>)}
+    </tbody></table></div>:<p class="empty">Aún no tienes proyectos visibles.</p>}
+  </section>
+</Shell>
