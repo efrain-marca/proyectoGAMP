@@ -60,6 +60,7 @@ export function input(form) {
   }
   return {
     text,
+    has: key => form.has(key),
     id: (key, label, required = true) => (!required && !form.get(key)) ? null : id(form.get(key), label),
     date(key, label, { min, max } = {}) {
       const value = form.get(key);

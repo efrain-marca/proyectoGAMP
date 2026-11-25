@@ -8,6 +8,7 @@
     "dev": "node scripts/dev.mjs",
     "build": "astro build",
     "start": "node --env-file-if-exists=.env dist/server/entry.mjs",
+    "db:ubicacion": "node --env-file-if-exists=.env scripts/ubicacion.mjs",
     "db:init": "node --env-file-if-exists=.env scripts/setup.mjs",
     "test": "node --test tests/*.test.mjs"
   },

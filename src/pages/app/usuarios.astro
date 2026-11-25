@@ -1,4 +1,5 @@
 ---
+import { funciones } from '../../lib/seguimiento.mjs';
 import Shell from '../../components/Shell.astro';
 import Form from '../../components/Form.astro';
 import { rows } from '../../lib/db.mjs';
@@ -18,9 +19,9 @@ const fields=(u={})=>[field('nombre','Nombre completo',{value:u.nombre,minLength
 <Shell title="Usuarios">
   <div class="page-heading"><p class="eyebrow">Administración</p><h1>Cuentas municipales</h1><p>Gestiona quién puede ingresar al panel y las funciones de cada cuenta.</p></div>
   <details class="panel editor"><summary>Crear cuenta municipal</summary><Form action="user" back="/app/usuarios" label="Crear cuenta" fields={fields()} /></details>
-  <section class="panel"><h2>Directorio de usuarios</h2>
+  <section class="panel"><div class="section-heading"><h2>Directorio de usuarios</h2><a class="button primary" href="/api/interno/usuarios.pdf" target="_blank" rel="noopener">Abrir informe PDF para imprimir</a></div>
     <form class="filter" method="get"><label>Nombre o correo<input name="q" value={q} maxlength="120" /></label><button class="button line">Buscar</button><a href="/app/usuarios">Limpiar</a></form>
-    <div class="items">{users.length?users.slice(0,30).map(u=><article class="list-row stack"><div class="lineup"><div><strong>{u.nombre}</strong><small>{u.correo} · {roles[u.rol]||("Rol anterior · "+u.rol)}</small><small>Alta {dateLabel(u.creado)}</small></div><span class:list={['pill',u.activo==='1'?'concluido':'neutral']}>{u.activo==='1'?'Activa':'Inactiva'}</span></div><details class="editor inset"><summary>Editar cuenta</summary><Form action="user" back="/app/usuarios" extra={{usuario:u.id}} fields={fields(u)} /></details></article>):<p class="empty">No se encontraron usuarios.</p>}</div>
+    <div class="items">{users.length?users.slice(0,30).map(u=><article class="list-row stack"><div class="lineup"><div><strong>{u.nombre}</strong><small>{u.correo} · {roles[u.rol]||("Rol anterior · "+u.rol)}</small><small>{funciones[u.rol]}</small><small>Alta {dateLabel(u.creado)}</small></div><span class:list={['pill',u.activo==='1'?'concluido':'neutral']}>{u.activo==='1'?'Activa':'Inactiva'}</span></div><details class="editor inset"><summary>Editar cuenta</summary><Form action="user" back="/app/usuarios" extra={{usuario:u.id}} fields={fields(u)} /></details></article>):<p class="empty">No se encontraron usuarios.</p>}</div>
     {(page>1||users.length>30)&&<nav class="pagination" aria-label="Páginas de usuarios">{page>1&&<a href={'?'+new URLSearchParams({q,pagina:String(page-1)})}>← Anterior</a>}<span>Página {page}</span>{users.length>30&&<a href={'?'+new URLSearchParams({q,pagina:String(page+1)})}>Siguiente →</a>}</nav>}
   </section>
 </Shell>

@@ -15,6 +15,7 @@ const active=(key,value)=>query.get(key)===value;
 ---
 <Shell title="Informes PDF">
   <div class="page-heading"><p class="eyebrow">Documentación institucional</p><h1>Informes PDF</h1><p>Selecciona el contenido, el proyecto y la fecha de corte para descargar un informe y entregarlo a un funcionario.</p></div>
+  <p class="panel"><a class="button line" href="/api/interno/usuarios.pdf" target="_blank" rel="noopener">Informe de usuarios y funciones</a></p>
   <section class="panel report-builder"><h2>Configurar informe</h2>
     <form method="get" action="/app/informes" class="operation">
       <div class="fields">

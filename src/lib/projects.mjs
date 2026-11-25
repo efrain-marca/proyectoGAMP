@@ -1,6 +1,8 @@
 import { rows, withDb, optional } from './db.mjs';
 import { today, addDays, operating, insist } from './rules.mjs';
 
+import { nombresHistorial } from './seguimiento.mjs';
+
 export function scope(account, alias='p') {
   if (!operating.includes(account.rol)) return {sql:'1=1', params:[]};
   return {sql:'EXISTS (SELECT 1 FROM responsables ac WHERE ac.proyecto='+alias+'.id AND ac.usuario=? AND ac.funcion=? AND ac.inicio<=? AND ac.fin>=?)',
@@ -23,6 +25,18 @@ export async function listProjects(account,{term='',state='',page=1}={}) {
   return rows('SELECT p.*,(SELECT COUNT(*) FROM actividades a WHERE a.proyecto=p.id) AS actividades FROM proyectos p WHERE '+sql+
     " AND (?='' OR p.estado=?) AND CONCAT_WS(' ',p.codigo,p.nombre,p.ubicacion) LIKE ? ESCAPE '!' ORDER BY p.creado DESC,p.id DESC LIMIT 21 OFFSET ?",
     [...params,state,state,pattern(term),(page-1)*20]);
+}
+export async function actividadesRecientes(account, proyectos) {
+  if (!proyectos.length) return new Map();
+  const acceso = scope(account);
+  const ids = proyectos.map(p=>Number(p.id));
+  const registros = await rows('SELECT a.proyecto,'+progress+' porcentaje FROM actividades a JOIN proyectos p ON p.id=a.proyecto WHERE '+acceso.sql+' AND p.id IN ('+ids.map(()=>'?').join(',')+')',[...acceso.params,...ids]);
+  const porProyecto = new Map();
+  for (const r of registros) {
+    if (!porProyecto.has(r.proyecto)) porProyecto.set(r.proyecto,[]);
+    porProyecto.get(r.proyecto).push(r);
+  }
+  return porProyecto;
 }
 export async function totals(account) {
   const scopeA=scope(account,'ap'), scopeP=scope(account);
@@ -57,6 +71,7 @@ export async function projectInfo(account, projectId, tab, filters={}) {
       insist(canReadHistory(account.rol),'Tu rol no puede consultar el historial detallado.',403);
       data.history=await q("SELECT h.*,u.nombre persona FROM historial h JOIN usuarios u ON u.id=h.autor WHERE h.proyecto=? AND (?='' OR h.entidad=?) AND (? IS NULL OR h.autor=?) AND h.fecha>=? AND h.fecha<DATE_ADD(?,INTERVAL 1 DAY) ORDER BY h.id DESC LIMIT 101 OFFSET ?",
         [projectId,filters.entity||'',filters.entity||'',filters.author||null,filters.author||null,filters.from||'1900-01-01',filters.until||today(),((filters.page||1)-1)*100]);
+      data.nombres=await nombresHistorial(q,data.history);
       data.authors=await q('SELECT DISTINCT u.id,u.nombre FROM historial h JOIN usuarios u ON u.id=h.autor WHERE h.proyecto=? ORDER BY u.nombre',[projectId]);
       data.entities=await q('SELECT DISTINCT entidad FROM historial WHERE proyecto=? ORDER BY entidad',[projectId]);
     }

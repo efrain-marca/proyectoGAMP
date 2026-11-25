@@ -1,4 +1,5 @@
 ---
+import MapaProyecto from '../../../components/MapaProyecto.astro';
 import Shell from '../../../components/Shell.astro';
 import Form from '../../../components/Form.astro';
 import { listProjects } from '../../../lib/projects.mjs';
@@ -12,7 +13,7 @@ const url=(p)=>'/app/proyectos?'+new URLSearchParams({q:term,estado:state,pagina
 ---
 <Shell title="Proyectos">
   <div class="page-heading"><p class="eyebrow">Expedientes municipales</p><h1>Proyectos</h1><p>Busca por nombre, código o ubicación y consulta el estado de cada proyecto.</p></div>
-  {account.rol==='admin'&&<details class="panel editor"><summary>Registrar proyecto</summary><Form action="create_project" back="/app/proyectos" fields={projectFields()} label="Registrar proyecto" /></details>}
+  {account.rol==='admin'&&<details class="panel editor"><summary>Registrar proyecto</summary><Form action="create_project" back="/app/proyectos" fields={projectFields()} label="Registrar proyecto"><MapaProyecto editar /></Form></details>}
   <section class="panel records">
     <form method="get" class="filter"><label>Buscar<input name="q" value={term} maxlength="120" placeholder="Nombre, código o ubicación" /></label><label>Estado<select name="estado"><option value="">Todos los estados</option>{Object.entries(states).map(([value,label])=><option value={value} selected={state===value}>{label}</option>)}</select></label><button class="button primary">Buscar</button><a href="/app/proyectos">Limpiar</a></form>
     {records.length?<div class="table-scroll"><table><thead><tr><th>Proyecto</th><th>Unidad</th><th>Estado</th><th>Plazo</th><th></th></tr></thead><tbody>

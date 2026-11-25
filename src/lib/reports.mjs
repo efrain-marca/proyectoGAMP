@@ -1,5 +1,6 @@
 import { withDb, optional } from './db.mjs';
 import { dateLabel, id, insist, isDate, money, roles, states, statusLabel, today } from './rules.mjs';
+import { nombresHistorial, mostrarVersion, avanceFisico } from './seguimiento.mjs';
 export const reportTypes={
   consolidado:'Consolidado de proyectos', avances:'Avances físicos y financieros',
   presupuesto:'Presupuesto y ejecución financiera', cronograma:'Cronograma y cumplimiento',
@@ -21,17 +22,13 @@ const row=(title,...details)=>({title,details:details.filter(Boolean)});
 const percent=value=>optional(value)==null?'Sin registro':Number(value).toLocaleString('es-BO',{maximumFractionDigits:2})+' %';
 const reference=(amount,base)=>Number(base)>0?percent((Number(amount)*100/Number(base)).toFixed(2)):'No calculable (presupuesto cero)';
 const csvDate=(start,end)=>dateLabel(start)+' al '+dateLabel(end);
-const attached=id=>optional(id)?'Documento #'+id:'';
+
 function newestPer(records,key) {
   const previous=new Set();
   return records.filter(record=>{
     if (previous.has(record[key])) return false;
     previous.add(record[key]); return true;
   });
-}
-function eventSummary(record) {
-  const values=JSON.parse(record==='NULL'?'null':record);
-  return values?Object.entries(values).map(([key,value])=>key+' '+(typeof value==='object'&&value!==null?JSON.stringify(value):String(value))).join(' · '):'';
 }
 export async function loadReport(account,filters) {
   insist(account.rol==='admin','El informe está disponible para el administrador.',403);
@@ -43,6 +40,9 @@ export async function loadReport(account,filters) {
     for (const p of list) {
       const pid=Number(p.id), sections=[];
       const selected=(...types)=>types.includes(type);
+      const archivos = await q('SELECT id,nombre FROM documentos WHERE proyecto=?',[pid]);
+      const nombresArchivos = new Map(archivos.map(a=>[String(a.id),a.nombre]));
+      const attached = id => optional(id) ? nombresArchivos.get(String(id)) || 'Documento de respaldo' : '';
       let budgets=[], financial=[], allPhysical=[], tasks=[];
       if (selected('consolidado','presupuesto','avances')) {
         budgets=await q('SELECT b.*,u.nombre persona FROM presupuesto b JOIN usuarios u ON u.id=b.autor WHERE b.proyecto=? AND b.fecha<=? ORDER BY b.fecha DESC,b.id DESC',[pid,cut]);
@@ -53,6 +53,10 @@ export async function loadReport(account,filters) {
         const reschedules=await q('SELECT r.*,a.nombre,u.nombre persona FROM reprogramaciones r JOIN actividades a ON a.id=r.actividad JOIN usuarios u ON u.id=r.autor WHERE a.proyecto=? AND r.fecha<DATE_ADD(?,INTERVAL 1 DAY) ORDER BY r.id DESC',[pid,cut]);
         allPhysical=await q('SELECT f.*,a.nombre,u.nombre persona FROM avances_fisicos f JOIN actividades a ON a.id=f.actividad JOIN usuarios u ON u.id=f.autor WHERE a.proyecto=? AND f.vigente=1 AND f.corte<=? ORDER BY f.corte DESC,f.id DESC',[pid,cut]);
         const current=new Map(newestPer(allPhysical,'actividad').map(record=>[record.actividad,record]));
+        const avance=avanceFisico(tasks.map(t=>({porcentaje:current.get(t.id)?.porcentaje})));
+        sections.push(section('Avance físico al corte',[row(avance.promedio==null?'Sin avance informado':percent(avance.promedio)+' de avance promedio',
+          avance.medidas+' de '+avance.total+' actividades informadas (igual peso por actividad).',
+          avance.total>0&&avance.total===avance.medidas?'Pendiente '+percent(100-avance.promedio):'Cobertura incompleta para estimar el pendiente global.')]));
         const releases=new Map(newestPer(reschedules,'actividad').map(record=>[record.actividad,record]));
         if (selected('consolidado','cronograma','avances')) sections.push(section(type==='avances'?'Último avance físico por actividad':'Cronograma y último avance físico',tasks.map(task=>{
           const plan=releases.get(task.id), record=current.get(task.id);
@@ -103,10 +107,12 @@ export async function loadReport(account,filters) {
       if (type==='documentos') {
         const docs=await q('SELECT d.*,u.nombre persona FROM documentos d JOIN usuarios u ON u.id=d.autor WHERE d.proyecto=? AND d.fecha BETWEEN ? AND ? AND d.registrado<DATE_ADD(?,INTERVAL 1 DAY) ORDER BY d.fecha,d.id',[pid,from,cut,cut]);
         sections.push(section('Inventario documental',docs.map(d=>row('#'+d.id+' · '+d.nombre,dateLabel(d.fecha)+' · '+d.persona,d.descripcion,d.tipo+' · '+d.bytes+' bytes',
-          optional(d.anterior)?'Versión anterior #'+d.anterior:'Primera versión',d.motivo))));
+          optional(d.anterior)?'Versión anterior · '+attached(d.anterior):'Primera versión',d.motivo))));
       }
       if (type==='historial') {
         const logs=await q('SELECT h.*,u.nombre persona FROM historial h JOIN usuarios u ON u.id=h.autor WHERE h.proyecto=? AND h.fecha>=? AND h.fecha<DATE_ADD(?,INTERVAL 1 DAY) ORDER BY h.id',[pid,from,cut]);
+        const nombres=await nombresHistorial(q,logs);
+        const eventSummary=json=>mostrarVersion(json,nombres).map(([k,v])=>k+' · '+v).join(' / ');
         sections.push(section('Actuaciones registradas',logs.map(h=>row(h.entidad+' · '+h.accion+' #'+h.registro,h.fecha+' · '+h.persona,h.motivo,
           optional(h.anterior)?'Anterior · '+eventSummary(h.anterior):'',optional(h.nuevo)?'Registrado · '+eventSummary(h.nuevo):''))));
       }

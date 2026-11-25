@@ -1,3 +1,4 @@
+import { cuentasDemo, claveDemo } from '../scripts/cuentas-demo.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -14,8 +15,9 @@ test('flujos completos de las 16 historias con Astro y una base MariaDB de demos
   const pass='Demo-Potosi#2026', date=today(), shift=n=>addDays(date,n);
   const get=(path,cookie)=>render(new Request(origin+path,{headers:cookie?{cookie}:{}}));
   const post=(path,body,cookie,source=origin)=>render(new Request(origin+path,{method:'POST',body,headers:{origin:source,accept:'application/json',...(cookie?{cookie}:{})}}));
-  async function login(username,password=pass) {
-    const response=await post('/api/auth/ingreso',new URLSearchParams({email:username+'@potosi.test',password}));
+  const emailDe = nombre => cuentasDemo[nombre]?.correo || nombre+'@potosi.test';
+  async function login(username,password=cuentasDemo[username]?claveDemo:pass) {
+    const response=await post('/api/auth/ingreso',new URLSearchParams({email:emailDe(username),password}));
     assert.equal(response.status,200,await response.text());
     const cookie=response.headers.get('set-cookie');
     assert.match(cookie,/HttpOnly/i);assert.match(cookie,/SameSite=Lax/i);
@@ -33,24 +35,33 @@ test('flujos completos de las 16 historias con Astro y una base MariaDB de demos
   }
   const parse=async response=>{assert.equal(response.status,200);return response.text();};
   const getProject=async code=>(await rows('SELECT * FROM proyectos WHERE codigo=?',[code]))[0];
-  const uid=async role=>(await rows('SELECT id FROM usuarios WHERE correo=?',[role+'@potosi.test']))[0]?.id;
+  const uid=async role=>(await rows('SELECT id FROM usuarios WHERE correo=?',[emailDe(role)]))[0]?.id;
   const passwords={};
   for (const account of ['admin','tecnico','finanzas','supervisor']) passwords[account]=await login(account);
   assert.equal((await get('/app')).status,303);
   assert.equal((await get('/api/interno/informe.pdf')).status,401);
-  assert.equal((await post('/api/auth/ingreso',new URLSearchParams({email:'admin@potosi.test',password:'otro'}))).status,401);
-  assert.equal((await post('/api/auth/ingreso',new URLSearchParams({email:'admin@potosi.test',password:pass}),null,'http://otra.invalid')).status,403);
+  assert.equal((await post('/api/auth/ingreso',new URLSearchParams({email:emailDe('admin'),password:'otro'}))).status,401);
+  assert.equal((await post('/api/auth/ingreso',new URLSearchParams({email:emailDe('admin'),password:pass}),null,'http://otra.invalid')).status,403);
   assert.match(await parse(await get('/app',passwords.admin)),/Proyectos recientes/);
   assert.match(await parse(await get('/app/usuarios',passwords.admin)),/Directorio de usuarios/);
   assert.match(await parse(await get('/portal')),/Villa Esperanza/);
 
+  assert.equal((await get('/api/interno/usuarios.pdf')).status,401);
+  assert.equal((await get('/api/interno/usuarios.pdf',passwords.tecnico)).status,403);
+  const directorio=await get('/api/interno/usuarios.pdf',passwords.admin);
+  assert.equal(directorio.status,200);
+  assert.equal(directorio.headers.get('content-type'),'application/pdf');
+  const contenido=Buffer.from(await directorio.arrayBuffer()).toString();
+  assert.match(contenido,/Diego Pacheco/);
+  assert.match(contenido,/Encargado de proyecto/);
+  assert.doesNotMatch(contenido,/@gmail|@potosi|gustavo12345|scrypt/);
   const demo=await getProject('POT-DEMO-001');
   const demo2=await getProject('POT-DEMO-002');
   assert.equal((await get('/app/proyectos/'+demo2.id,passwords.supervisor)).status,404);
   assert.equal((await get('/api/pub/'+demo2.id+'-1')).status,404);
 
   const newCode='PM-T-'+randomUUID().slice(0,8).toUpperCase();
-  const base={codigo:newCode,nombre:'Renovación de vías de prueba',ubicacion:'Potosí',unidad:'Obras Públicas',descripcion:'Ficha creada para comprobar las validaciones del sistema.',inicio:date,fin:shift(80)};
+  const base={codigo:newCode,nombre:'Renovación de vías de prueba',ubicacion:'Potosí',latitud:'-19.583600',longitud:'-65.753100',unidad:'Obras Públicas',descripcion:'Ficha creada para comprobar las validaciones del sistema.',inicio:date,fin:shift(80)};
   await op(passwords.admin,'create_project',{...base,inicio:shift(-1)},422);
   await op(passwords.admin,'create_project',{...base,fin:shift(-1)},422);
   await op(passwords.tecnico,'create_project',base,403);
@@ -61,8 +72,10 @@ test('flujos completos de las 16 historias con Astro y una base MariaDB de demos
   await op(passwords.admin,'create_project',base,409);
   const p=await getProject(newCode), proyecto=p.id;
 
+  assert.equal(p.latitud,base.latitud);
+  assert.equal(p.longitud,base.longitud);
   const supervisor=await uid('supervisor');
-  const assignment={proyecto,funcion:'supervisor',responsable:supervisor,inicio:date,fin:shift(20)};
+  const assignment={proyecto,responsable:supervisor,inicio:date,fin:shift(20)};
   const overlap=await op(passwords.admin,'assign',assignment,409);
   assert.match(overlap.error,/cruza/);
   const after=(await rows('SELECT fin FROM responsables WHERE proyecto=? AND funcion=?',[Number(demo.id),'supervisor']))[0].fin;
@@ -177,7 +190,11 @@ test('flujos completos de las 16 historias con Astro y una base MariaDB de demos
   assert.match(await parse(await get('/portal/'+proyecto)),/Resumen aprobado/);
   assert.equal((await get('/api/pub/'+proyecto+'-'+doc)).status,200);
   const revision=(await getProject(newCode)).revision;
-  await op(passwords.admin,'edit_project',{...base,proyecto,revision,nombre:'Nombre interno pendiente de publicación',motivo:'Actualizar la nomenclatura de la obra.'});
+  const anteriorAlMapa={...base};
+  delete anteriorAlMapa.latitud;
+  delete anteriorAlMapa.longitud;
+  await op(passwords.admin,'edit_project',{...anteriorAlMapa,proyecto,revision,nombre:'Nombre interno pendiente de publicación',motivo:'Actualizar la nomenclatura de la obra.'});
+  assert.equal((await getProject(newCode)).latitud,base.latitud);
   await op(passwords.admin,'edit_project',{...base,proyecto,revision,motivo:'Intento desde una edición anterior.'},409);
   assert.doesNotMatch(await parse(await get('/portal/'+proyecto)),/Nombre interno pendiente/);
   const publication=(await rows('SELECT id FROM versiones_publicas WHERE proyecto=? AND activa=1',[Number(proyecto)]))[0].id;

@@ -1,3 +1,4 @@
+import { coordenadas } from './seguimiento.mjs';
 import { createHash } from 'node:crypto';
 import { inserted, optional, withDb } from './db.mjs';
 import { verifySession, hashPassword } from './auth.mjs';
@@ -35,17 +36,22 @@ export async function syncAlerts(q,projectId,state) {
     if (relevant) await q("INSERT INTO alertas (actividad,tipo,fin) VALUES (?,?,?) ON DUPLICATE KEY UPDATE estado=IF(estado='cerrada','abierta',estado)",[task,type,activity.fin]);
   }
 }
-function projectFields(f) {
+function projectFields(f, previous={}) {
   const codigo=f.text('codigo','el código',{min:3,max:30}).toUpperCase();
   insist(/^[A-Z0-9]+([-/][A-Z0-9]+)*$/.test(codigo),'El código admite letras, números, guiones y barras entre segmentos.');
+  const lat = f.text('latitud','la latitud',{required:false});
+  const lon = f.text('longitud','la longitud',{required:false});
+  const [latitud,longitud] = f.has('latitud') || f.has('longitud')
+    ? coordenadas(lat,lon)
+    : [optional(previous.latitud) ?? null,optional(previous.longitud) ?? null];
   return {codigo,nombre:f.text('nombre','el nombre',{min:5,max:160}),ubicacion:f.text('ubicacion','la ubicación',{min:3,max:150}),
     unidad:f.text('unidad','la unidad',{min:3,max:120}),descripcion:f.text('descripcion','la descripción',{min:10,max:1600}),
-    inicio:f.date('inicio','Inicio'),fin:f.date('fin','Fin')};
+    inicio:f.date('inicio','Inicio'),fin:f.date('fin','Fin'),latitud,longitud};
 }
 async function createProject(q,f,actor) {
   const data=projectFields(f);
   period(data.inicio,data.fin,{min:today()});
-  await q('INSERT INTO proyectos (codigo,nombre,ubicacion,unidad,descripcion,inicio,fin,autor) VALUES (?,?,?,?,?,?,?,?)',[...Object.values(data),actor]);
+  await q('INSERT INTO proyectos (codigo,nombre,ubicacion,unidad,descripcion,inicio,fin,latitud,longitud,autor) VALUES (?,?,?,?,?,?,?,?,?,?)',[...Object.values(data),actor]);
   const projectId=await inserted(q);
   await q("INSERT INTO cambios_estado (proyecto,nuevo,motivo,autor) VALUES (?,'planificado','Registro inicial',?)",[projectId,actor]);
   await audit(q,projectId,'Proyecto',projectId,'Creación',null,{...data,estado:'planificado'},'',actor);
@@ -74,7 +80,7 @@ async function user(q,f,actor,encrypted) {
   await audit(q,null,'Usuario',target,encrypted?'Actualización y cambio de contraseña':'Actualización',before,info,'',actor);
 }
 async function editProject(q,p,f,actor) {
-  const data=projectFields(f), reason=note(f);
+  const data=projectFields(f,p), reason=note(f);
   insist(same(p.revision,f.id('revision','revisión')),'La ficha fue actualizada. Recarga la página y revisa la versión vigente.',409);
   period(data.inicio,data.fin);
   if (data.inicio!==p.inicio) {
@@ -87,8 +93,8 @@ async function editProject(q,p,f,actor) {
   const [children]=await q('SELECT (SELECT COUNT(*) FROM actividades WHERE proyecto=? AND (inicio<? OR fin>?)) + (SELECT COUNT(*) FROM responsables WHERE proyecto=? AND (inicio<? OR fin>?)) fuera',[projectId,data.inicio,data.fin,projectId,data.inicio,data.fin]);
   insist(Number(children.fuera)===0,'Las nuevas fechas dejarían actividades o asignaciones fuera del proyecto.');
   const previous=Object.fromEntries(Object.keys(data).map(key=>[key,p[key]]));
-  insist(Object.keys(data).some(key=>data[key]!==p[key]),'La ficha ya contiene esos datos.');
-  await q('UPDATE proyectos SET codigo=?,nombre=?,ubicacion=?,unidad=?,descripcion=?,inicio=?,fin=?,revision=revision+1 WHERE id=?',[...Object.values(data),projectId]);
+  insist(Object.keys(data).some(key=>String(data[key]??'NULL')!==String(p[key])),'La ficha ya contiene esos datos.');
+  await q('UPDATE proyectos SET codigo=?,nombre=?,ubicacion=?,unidad=?,descripcion=?,inicio=?,fin=?,latitud=?,longitud=?,revision=revision+1 WHERE id=?',[...Object.values(data),projectId]);
   await audit(q,projectId,'Proyecto',projectId,'Actualización',previous,data,reason,actor);
 }
 async function assign(q,p,f,actor) {
@@ -107,11 +113,11 @@ async function assign(q,p,f,actor) {
     await audit(q,projectId,'Responsable',previousId,'Finalización',{fin:previous.fin},{fin:addDays(effective,-1)},reason,actor);
     return;
   }
-  const userId=f.id('responsable','responsable'), role=f.pick('funcion',operating,'la función');
+  const userId=f.id('responsable','responsable');
   const start=f.date('inicio','Inicio'),end=f.date('fin','Fin');
   period(start,end,{min:[today(),p.inicio].sort().at(-1),max:p.fin});
   if (previous) {
-    insist(previous.funcion===role && !same(previous.usuario,userId),'El relevo requiere la misma función y una persona distinta.');
+    insist(!same(previous.usuario,userId),'El relevo requiere una persona distinta.');
     insist(start>previous.inicio && start<=addDays(previous.fin,1),'La fecha de relevo debe continuar el periodo de la asignación anterior.');
   }
   const ids=[...new Set([userId,...(previous?[Number(previous.usuario)]:[])])].sort((a,b)=>a-b);
@@ -120,7 +126,9 @@ async function assign(q,p,f,actor) {
     const [account]=await q('SELECT id,activo,rol FROM usuarios WHERE id=? FOR UPDATE',[person]);
     if (person===userId) candidate=account;
   }
-  insist(candidate?.activo==='1' && candidate.rol===role,'La persona debe tener una cuenta activa con el rol de la asignación.');
+  const role=f.has('funcion') ? f.pick('funcion',operating,'la función') : candidate?.rol;
+  insist(!previous || role===previous.funcion,'El relevo requiere la misma función.');
+  insist(candidate?.activo==='1' && operating.includes(role) && candidate.rol===role,'La persona debe tener una cuenta activa con el rol de la asignación.');
   const [collision]=await q("SELECT r.id,r.proyecto,r.inicio,r.fin FROM responsables r WHERE r.inicio<=? AND r.fin>=? AND r.id<>? AND ((r.proyecto=? AND r.funcion=?) OR (?='supervisor' AND r.usuario=?)) LIMIT 1 FOR UPDATE",[end,start,previousId||0,projectId,role,role,userId]);
   if (collision) {
     const [code]=await q('SELECT codigo FROM proyectos WHERE id=?',[Number(collision.proyecto)]);

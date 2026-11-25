@@ -18,7 +18,7 @@ Aplicación web con **Astro 7, Node.js y MariaDB de XAMPP**. Incluye un panel in
 
 4. Abre [http://127.0.0.1:4321](http://127.0.0.1:4321). Pulsa **Acceso municipal** para entrar.
 
-El archivo `.env` apunta a `C:/xampp/mysql/bin/mysql.exe`, host `127.0.0.1` y puerto `3306`. Ajusta `DB_CLIENT`, `DB_PORT`, `DB_USER` y `DB_PASSWORD` a tu instalación. Usa barras normales en la ruta del cliente en Windows, como en el ejemplo. Con MySQL/MariaDB activo, Apache es opcional para ejecutar Astro. En Linux puedes configurar `DB_CLIENT=mariadb` si tienes el cliente en el `PATH`, o indicar la ruta del cliente instalado.
+En Windows con XAMPP configura `DB_CLIENT=C:/xampp/mysql/bin/mysql.exe` en `.env`. Ajusta `DB_CLIENT`, `DB_PORT`, `DB_USER` y `DB_PASSWORD` a tu instalación. Usa barras normales en la ruta del cliente en Windows, como en el ejemplo. Con MySQL/MariaDB activo, Apache es opcional para ejecutar Astro. En Linux puedes configurar `DB_CLIENT=mariadb` si tienes el cliente en el `PATH`, o indicar la ruta del cliente instalado.
 
 **Arranque compilado**
 
@@ -31,14 +31,14 @@ npm start
 
 ## 2. Credenciales de demostración
 
-Usa la contraseña `Demo-Potosi#2026` con cualquiera de estas cuentas. El instalador las crea con la opción `--demo` sobre una base sin usuarios.
+Usa la contraseña `gustavo12345` con cualquiera de estas cuentas. La opción `--demo` prepara estas cuatro cuentas en la base de la práctica. Si ya existen proyectos, conserva sus responsables y publicaciones. Solo agrega obras de ejemplo cuando todavía no hay proyectos.
 
 | Rol | Correo | Funciones en la demostración |
 | --- | --- | --- |
-| Administrador | `admin@potosi.test` | Usuarios, proyectos, encargados, cronogramas, ampliaciones, informes PDF y publicaciones |
-| Encargado de proyecto | `tecnico@potosi.test` | Avances físicos con documento de respaldo y gestión de documentos |
-| Encargado de presupuesto | `finanzas@potosi.test` | Presupuestos, ejecución financiera e incidentes internos |
-| Supervisor | `supervisor@potosi.test` | Inspecciones de obra con fecha de visita, observación y respaldo |
+| Administrador | `admin123@gmail.com` | Usuarios, proyectos, encargados, cronogramas, ampliaciones, informes PDF y publicaciones |
+| Encargado de proyecto | `encargado123@gmail.com` | Avances físicos con documento de respaldo y gestión de documentos |
+| Encargado de presupuesto | `presupuesto123@gmail.com` | Presupuestos, ejecución financiera e incidentes internos |
+| Supervisor | `supervisor123@gmail.com` | Inspecciones de obra con fecha de visita, observación y respaldo |
 
 Los encargados y supervisores acceden a proyectos con asignación vigente. La ciudadanía consulta la versión pública aprobada.
 

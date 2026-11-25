@@ -1,0 +1,17 @@
+---
+import { avanceFisico } from '../lib/seguimiento.mjs';
+const {actividades} = Astro.props;
+const {promedio, medidas, total} = avanceFisico(actividades);
+const completo = medidas===total;
+const formato = n=>n.toLocaleString('es-BO',{maximumFractionDigits:2});
+---
+<section class="panel avance">
+  <h2>Avance físico del proyecto</h2>
+  {promedio!==null ? <>
+    <strong>{formato(promedio)} %</strong> <span>{completo?'de avance promedio':'de avance en actividades informadas'}</span>
+    <progress max="100" value={promedio} aria-label="Avance físico promedio"></progress>
+    <p>{completo ? 'Falta el '+formato(100-promedio)+' % para completar las actividades.' : (total-medidas)+' actividades pendientes de informar. El avance global aún está incompleto.'}</p>
+    <small>Último corte vigente por actividad · {medidas} de {total} con registro · igual peso por actividad.</small>
+  </> : <p>{total?'Las actividades todavía no tienen un avance registrado.':'El proyecto todavía no tiene actividades programadas.'}</p>}
+  {actividades.length>0 && <details><summary>Ver avance por actividad</summary>{actividades.map(a=><div class="activity-meter"><div><b>{a.nombre}</b><small>{a.persona}</small></div><span>{a.porcentaje==='NULL'||a.porcentaje==null?'Sin registro':formato(Number(a.porcentaje))+' %'}</span></div>)}</details>}
+</section>

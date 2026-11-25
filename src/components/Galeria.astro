@@ -1,0 +1,11 @@
+---
+const { documentos, proyecto, limite = documentos.length } = Astro.props;
+const fotos = documentos.filter(d => ['image/png','image/jpeg'].includes(d.tipo)).slice(0,limite);
+const imagen = d => '/api/interno/documentos/'+proyecto+'-'+d.id+'?vista=imagen';
+---
+{fotos.length>0 && <div class="evidencias">
+  {fotos.map(d => <figure>
+    <a href={imagen(d)} target="_blank" rel="noopener"><img loading="lazy" decoding="async" src={imagen(d)} alt={d.descripcion||d.nombre} /></a>
+    <figcaption>{d.descripcion||d.nombre} · {d.persona}</figcaption>
+  </figure>)}
+</div>}

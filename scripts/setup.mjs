@@ -1,3 +1,4 @@
+import { cuentasDemo, prepararCuentas } from './cuentas-demo.mjs';
 import { readFile } from 'node:fs/promises';
 import { randomBytes, createHash } from 'node:crypto';
 import { databaseName, inserted, runScript, withDb } from '../src/lib/db.mjs';
@@ -12,9 +13,8 @@ const demo=flags.has('--demo');
 const name=databaseName();
 const date=today();
 const shift=count=>addDays(date,count);
-const common='Demo-Potosi#2026';
-const mails=Object.fromEntries(Object.keys(roles).map(role=>[role,role+'@potosi.test']));
-const schema=(await Promise.all(['01-esquema.sql','02-validaciones.sql'].map(file=>readFile(new URL('../database/'+file,import.meta.url),'utf8')))).join('\n');
+const adminInicial='admin@potosi.test';
+const schema=(await Promise.all(['01-esquema.sql','02-validaciones.sql','03-ubicacion.sql'].map(file=>readFile(new URL('../database/'+file,import.meta.url),'utf8')))).join('\n');
 
 try {
   await runScript('CREATE DATABASE IF NOT EXISTS '+name+' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\nUSE '+name+';\n'+schema);
@@ -24,20 +24,16 @@ try {
     const fresh=await withDb(async q=>{
       const [existing]=await q("SELECT id FROM usuarios WHERE rol='admin' LIMIT 1 FOR UPDATE");
       if (existing) return false;
-      await q("INSERT INTO usuarios (nombre,correo,clave,rol) VALUES ('Administración municipal',?,?,'admin')",[mails.admin,await hashPassword(pass)]);
+      await q("INSERT INTO usuarios (nombre,correo,clave,rol) VALUES ('Administración municipal',?,?,'admin')",[adminInicial,await hashPassword(pass)]);
       return true;
     },{transaction:true});
-    console.log(fresh?'Cuenta inicial '+mails.admin+' / '+pass:'La cuenta administradora ya existe. Se conservaron sus credenciales.');
+    console.log(fresh?'Cuenta inicial '+adminInicial+' / '+pass:'La cuenta administradora ya existe. Se conservaron sus credenciales.');
   } else {
     const seed=await withDb(async q=>{
-      const [existing]=await q('SELECT id FROM usuarios LIMIT 1 FOR UPDATE');
+      const users=await prepararCuentas(q);
+      const [existing]=await q('SELECT id FROM proyectos LIMIT 1 FOR UPDATE');
       if (existing) return false;
-      const names={admin:'Administración Demo',tecnico:'Diego Pacheco',finanzas:'Camila Flores',supervisor:'Marcos Rojas'};
-      const users={};
-      for (const [role,person] of Object.entries(names)) {
-        await q('INSERT INTO usuarios (nombre,correo,clave,rol) VALUES (?,?,?,?)',[person,mails[role],await hashPassword(common),role]);
-        users[role]=await inserted(q);
-      }
+      const names=Object.fromEntries(Object.entries(cuentasDemo).map(([rol,cuenta])=>[rol,cuenta.nombre]));
       const examples=[
         {code:'POT-DEMO-001',name:'Mejoramiento de la plaza de Villa Esperanza',location:'Zona Villa Esperanza',unit:'Dirección de Obras Públicas',state:'ejecucion',start:shift(-25),end:shift(48),
           description:'Proyecto de demostración para mejorar el acceso peatonal, la iluminación y las áreas de descanso de una plaza barrial.'},
@@ -106,15 +102,15 @@ try {
       }
       return map;
     },{transaction:true});
-    if (!seed) console.log('La base ya contiene usuarios. Se conservaron los datos existentes.');
-    else {
-      console.log('Datos ficticios instalados. Contraseña de todas las cuentas demo: '+common);
-      for (const [role,address] of Object.entries(mails)) console.log(roles[role]+' — '+address);
-    }
+    console.log(seed?'Se crearon tres proyectos ficticios con dos fichas públicas.':'Se conservaron los proyectos registrados.');
+    for (const [rol,cuenta] of Object.entries(cuentasDemo)) console.log(roles[rol]+' · '+cuenta.correo);
+    const [estado]=await withDb(q=>q('SELECT (SELECT COUNT(*) FROM proyectos) proyectos,(SELECT COUNT(*) FROM versiones_publicas WHERE activa=1) publicados'));
+    console.log('Proyectos registrados: '+estado.proyectos+'. Publicados para la ciudadanía: '+estado.publicados+'.');
+
   }
   console.log('Base: '+name);
 } catch (error) {
-  console.error('No se pudo inicializar la base. Comprueba XAMPP y los datos de .env.');
+  console.error('No se pudo preparar la base. Comprueba que MariaDB esté en ejecución y que la conexión de .env corresponda a tu instalación.');
   console.error(error.message);
   process.exitCode=1;
 }

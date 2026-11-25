@@ -6,7 +6,7 @@ const query=Astro.url.searchParams,term=(query.get('q')||'').slice(0,120),raw=qu
 const state=Object.hasOwn(states,raw)?raw:'';
 const n=Number(query.get('pagina')||1),page=Number.isSafeInteger(n)?Math.max(1,Math.min(n,10000)):1;
 let records,error;
-try {records=await publicList(term,state,page);} catch {error=true;Astro.response.status=503;records=[];}
+try {records=await publicList(term,state,page);} catch (cause) {console.error('[portal] Error al consultar las publicaciones',cause.message);error=true;Astro.response.status=503;records=[];}
 const url=(p)=>'/portal?'+new URLSearchParams({q:term,estado:state,pagina:String(p)});
 ---
 <Shell title="Portal ciudadano" publicPage>
@@ -14,7 +14,7 @@ const url=(p)=>'/portal?'+new URLSearchParams({q:term,estado:state,pagina:String
   <section id="proyectos" class="portal-results">
     <div class="section-heading"><div><h2>Proyectos publicados</h2><p>Consulta las fichas aprobadas para difusión.</p></div></div>
     <form method="get" class="filter panel"><label>Buscar<input name="q" maxlength="120" value={term} placeholder="Nombre, ubicación o código" /></label><label>Estado<select name="estado"><option value="">Todos los estados</option>{Object.entries(states).map(([value,label])=><option value={value} selected={state===value}>{label}</option>)}</select></label><button class="button primary">Buscar</button><a href="/portal#proyectos">Limpiar</a></form>
-    {error?<p class="notice error">El portal está temporalmente fuera de servicio. Vuelve a consultar más tarde.</p>:records.length?<div class="public-cards">{records.slice(0,21).map(r=><article class="public-card"><div class="lineup"><span class="eyebrow">{r.ficha.codigo}</span><span class:list={['pill',r.ficha.estado]}>{states[r.ficha.estado]}</span></div><h3><a href={'/portal/'+r.proyecto}>{r.ficha.nombre}</a></h3><p>{r.ficha.ubicacion}</p><small>Actualizado el {dateLabel(r.aprobada)}</small><a class="record-link" href={'/portal/'+r.proyecto}>Ver ficha ↗</a></article>)}</div>:<p class="empty">No se encontraron proyectos publicados para esos filtros.</p>}
+    {error?<p class="notice error">No se pudo consultar el registro municipal. <a href={url(page)}>Volver a intentar</a></p>:records.length?<div class="public-cards">{records.slice(0,21).map(r=><article class="public-card"><div class="lineup"><span class="eyebrow">{r.ficha.codigo}</span><span class:list={['pill',r.ficha.estado]}>{states[r.ficha.estado]}</span></div><h3><a href={'/portal/'+r.proyecto}>{r.ficha.nombre}</a></h3><p>{r.ficha.ubicacion}</p><small>Actualizado el {dateLabel(r.aprobada)}</small><a class="record-link" href={'/portal/'+r.proyecto}>Ver ficha ↗</a></article>)}</div>:<p class="empty">{term||state||page>1?'No se encontraron proyectos publicados para esta búsqueda.':'Todavía no hay proyectos publicados para la ciudadanía.'}</p>}
     {(page>1||records.length>21)&&<nav class="pagination" aria-label="Páginas del portal">{page>1&&<a href={url(page-1)}>← Anterior</a>}<span>Página {page}</span>{records.length>21&&<a href={url(page+1)}>Siguiente →</a>}</nav>}
   </section>
 </Shell>

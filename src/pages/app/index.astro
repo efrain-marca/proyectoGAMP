@@ -1,9 +1,13 @@
 ---
 import Shell from '../../components/Shell.astro';
-import { listProjects, totals } from '../../lib/projects.mjs';
+import { avanceFisico } from '../../lib/seguimiento.mjs';
+import { actividadesRecientes, listProjects, totals } from '../../lib/projects.mjs';
 import { dateLabel, roles, states, today } from '../../lib/rules.mjs';
 const user=Astro.locals.account;
 const [counts,recent]=await Promise.all([totals(user),listProjects(user)]);
+const cinco=recent.slice(0,5);
+const actividades=await actividadesRecientes(user,cinco);
+const fichas=cinco.map(p=>({...p,avance:avanceFisico(actividades.get(p.id)||[])}));
 const stats=[
   {label:'Proyectos visibles',value:counts.total,icon:'▤',tint:'mint'},
   {label:'En ejecución',value:counts.ejecucion,icon:'↗',tint:'teal'},
@@ -22,8 +26,8 @@ const stats=[
   <div class="stats">{stats.map(s=><article class="stat"><span class:list={['stat-icon',s.tint]} aria-hidden="true">{s.icon}</span><strong>{s.value}</strong><span>{s.label}</span></article>)}</div>
   <section class="panel records">
     <div class="section-heading"><div><h2>Proyectos recientes</h2><p>Consulta el expediente y el cronograma de cada proyecto.</p></div><a class="button line" href="/app/proyectos">Ver todos <span aria-hidden="true">→</span></a></div>
-    {recent.length? <div class="table-scroll"><table><thead><tr><th>Proyecto</th><th>Estado</th><th>Fecha prevista de fin</th><th>Actividades</th></tr></thead><tbody>
-      {recent.slice(0,5).map(p=><tr><td><a class="record-link" href={'/app/proyectos/'+p.id}>{p.nombre}</a><small>{p.codigo} · {p.ubicacion}</small></td><td><span class:list={['pill',p.estado]}>{states[p.estado]}</span></td><td>{dateLabel(p.fin)}</td><td>{p.actividades}</td></tr>)}
+    {recent.length? <div class="table-scroll"><table><thead><tr><th>Proyecto</th><th>Estado</th><th>Fecha prevista de fin</th><th>Avance físico</th></tr></thead><tbody>
+      {fichas.map(p=><tr><td><a class="record-link" href={'/app/proyectos/'+p.id}>{p.nombre}</a><small>{p.codigo} · {p.ubicacion}</small></td><td><span class:list={['pill',p.estado]}>{states[p.estado]}</span></td><td>{dateLabel(p.fin)}</td><td>{p.avance.promedio!==null?<><progress max="100" value={p.avance.promedio} aria-label={'Avance informado de '+p.nombre}></progress> {p.avance.promedio.toLocaleString('es-BO')} %<small>{p.avance.medidas} de {p.avance.total} actividades informadas</small></>:<small>{p.avance.total?'Avance pendiente de informar':'Sin actividades'}</small>}</td></tr>)}
     </tbody></table></div>:<p class="empty">Aún no tienes proyectos visibles.</p>}
   </section>
 </Shell>

@@ -9,6 +9,12 @@ export async function hashPassword(value) {
   const salt = randomBytes(16).toString('hex');
   return salt + ':' + (await derive(value, salt, 64)).toString('hex');
 }
+export async function passwordMatches(password, stored) {
+  const [salt, key] = stored.split(':');
+  const actual = await derive(typeof password === 'string' && password.length <= 128 ? password : '', salt, 64);
+  const expected = Buffer.from(key, 'hex');
+  return expected.length===actual.length && timingSafeEqual(actual,expected);
+}
 export function tokenOf(context) { return context.cookies.get('pm_session')?.value; }
 export function writeCookie(context, name, value, maxAge) {
   context.cookies.set(name, value, { httpOnly: true, maxAge, sameSite: 'lax', secure: process.env.COOKIE_SECURE === 'true', path: '/' });
@@ -34,8 +40,7 @@ export async function login(context, form) {
     const attempts = await q('SELECT clave,cantidad FROM intentos WHERE clave IN (?,?)', [identity,ip]);
     if (attempts.some(row => Number(row.cantidad) > (row.clave === identity ? 8 : 35))) return { limited:true };
     const [account] = await q('SELECT id,activo,clave,rol FROM usuarios WHERE correo=? FOR UPDATE', [email]);
-    const [salt, key] = (account?.clave || fake).split(':');
-    const valid = timingSafeEqual(await derive(typeof password === 'string' && password.length <= 128 ? password : '', salt, 64), Buffer.from(key, 'hex'));
+    const valid = await passwordMatches(password,account?.clave || fake);
     if (!valid || account?.activo !== '1' || !Object.hasOwn(roles,account.rol)) return {};
     const token = randomBytes(32).toString('hex');
     const previous = tokenOf(context);

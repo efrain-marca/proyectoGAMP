@@ -49,8 +49,8 @@ export function renderPdf(report) {
   }
   newPage();
   para('Fecha de corte '+dateLabel(report.filters.cut)+'  ·  Emisión '+report.issued,42,10,true,90,15,ink);
-  para('Emitido por '+report.issuer+'  ·  '+(report.filters.hasFrom?'Desde '+dateLabel(report.filters.from):'Todos los periodos')+'  ·  '+(report.filters.state?states[report.filters.state]:'Todos los estados'),42,9,false,98,14,secondary);
-  if (report.filters.project) para('Proyecto seleccionado #'+report.filters.project,42,9,false,98,14,secondary);
+  para('Emitido por '+report.issuer+(report.directory?'':'  ·  '+(report.filters.hasFrom?'Desde '+dateLabel(report.filters.from):'Todos los periodos')+'  ·  '+(report.filters.state?states[report.filters.state]:'Todos los estados')),42,9,false,98,14,secondary);
+  if (report.filters.project && report.documents.length) para('Proyecto seleccionado · '+report.documents[0].name,42,9,false,98,14,secondary);
   if (!report.documents.length) para('No se encontraron proyectos para los filtros seleccionados.',42,11,false,80,18,ink);
   for (const project of report.documents) {
     activeProject=null;activeSection=null;

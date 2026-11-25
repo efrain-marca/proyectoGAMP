@@ -1,0 +1,16 @@
+---
+const {lat='',lon='',direccion='',editar=false}=Astro.props;
+const limpio = v => v==='NULL'||v==null?'':v;
+---
+<section class="geo" data-geo data-direccion={direccion} data-edit={editar?'1':'0'} data-lat={limpio(lat)} data-lon={limpio(lon)}>
+  <h3>{editar?'Seleccionar ubicación':'Ubicación de la obra'}</h3>
+  {editar&&<div class="geo-search"><label>Buscar un lugar<input type="search" data-query placeholder="Calle, barrio o plaza de Potosí" /></label><button type="button" class="button line" data-search>Buscar en el mapa</button></div>}
+  <div data-results></div>
+  <div class="geo-canvas" data-map aria-label="Mapa de la obra"></div>
+  <p data-status role="status">{editar?'Buscá un lugar o tocá el mapa para cargar su ubicación.':''}</p>
+  {editar&&<details><summary>Coordenadas del proyecto</summary><div class="fields">
+    <label>Latitud<input name="latitud" type="number" min="-90" max="90" step="0.000001" value={limpio(lat)}/></label>
+    <label>Longitud<input name="longitud" type="number" min="-180" max="180" step="0.000001" value={limpio(lon)}/></label>
+  </div></details>}
+</section>
+<script src="/mapa.js" defer is:inline></script>
